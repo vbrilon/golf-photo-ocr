@@ -1,0 +1,18 @@
+# Golf Photo OCR - EasyOCR Implementation Requirements
+# Simple, reliable dependencies for the new EasyOCR-based system
+
+# Core OCR and image processing
+easyocr>=1.7.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Testing
+pytest>=8.0.0
+
+# Optional: Analysis and visualization (if needed)
+pandas>=2.0.0
+matplotlib>=3.8.0
+
+# Note: Removed pytesseract and related complex dependencies
+# The new system is much simpler and only needs EasyOCR
