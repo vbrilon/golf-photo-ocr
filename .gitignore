@@ -22,10 +22,16 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment (keep the venv but ignore if created elsewhere)
+# Virtual Environment - ALL virtual environment files should be ignored
 venv/
 env/
 ENV/
+bin/
+lib/
+share/
+lib64/
+include/
+pyvenv.cfg
 
 # IDE
 .vscode/
