@@ -10,14 +10,21 @@ Extracts 4 golf metrics from golf app screenshots:
 - **From Pin** (yards)
 - **Strokes Gained** (+/- value)
 
-## Installation
+## Setup
 
-1. Activate the virtual environment:
+1. Clone the repository:
    ```bash
+   git clone <repository-url>
+   cd photo-ocr
+   ```
+
+2. Create and activate virtual environment:
+   ```bash
+   python -m venv .
    source bin/activate
    ```
 
-2. Install dependencies:
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
@@ -63,7 +70,7 @@ Validate the system accuracy:
 # Quick test (single image)
 python test_validation.py --quick
 
-# Full ground truth validation (all 13 test images)
+# Full ground truth validation (all 15 test images)
 python test_validation.py
 ```
 
