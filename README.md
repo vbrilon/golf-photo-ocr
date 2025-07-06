@@ -15,7 +15,7 @@ Extracts 4 golf metrics from golf app screenshots:
 1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd photo-ocr
+   cd golf-photo-ocr
    ```
 
 2. Create and activate virtual environment:
