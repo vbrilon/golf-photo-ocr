@@ -30,7 +30,7 @@ def test_ground_truth():
     passed = 0
     total = 0
     
-    for filename, expected_values in ground_truth.items():
+    for filename, expected_dict in ground_truth.items():
         image_path = f"photos/{filename}"
         
         if not os.path.exists(image_path):
@@ -43,33 +43,56 @@ def test_ground_truth():
             # Extract metrics
             results = ocr.extract_from_image(image_path)
             
-            # Convert results to floats for comparison
-            extracted_values = []
-            for i, label in enumerate(ocr.labels):
-                value_str = results[label]
-                
-                # Handle signs
-                if '+' in value_str:
-                    value = float(value_str.replace('+', ''))
-                else:
-                    value = float(value_str)
-                    
-                extracted_values.append(value)
-            
-            # Compare with ground truth
+            # Compare each metric individually
             all_correct = True
-            for i, (extracted, expected) in enumerate(zip(extracted_values, expected_values)):
-                if abs(extracted - expected) >= 0.01:  # Allow small floating point differences
+            extracted_dict = {}
+            
+            for metric_key, expected_value in expected_dict.items():
+                if metric_key not in results:
+                    print(f"❌ {filename}: Missing metric '{metric_key}'")
                     all_correct = False
-                    break
+                    continue
+                
+                value_str = results[metric_key]
+                
+                # Handle different value types
+                if metric_key == "shot_id":
+                    # Shot ID should be integer
+                    try:
+                        extracted_value = int(value_str)
+                    except ValueError:
+                        print(f"❌ {filename}: Invalid shot_id '{value_str}' (not integer)")
+                        all_correct = False
+                        continue
+                else:
+                    # Numeric metrics (handle signs)
+                    try:
+                        if '+' in value_str:
+                            extracted_value = float(value_str.replace('+', ''))
+                        else:
+                            extracted_value = float(value_str)
+                    except ValueError:
+                        print(f"❌ {filename}: Invalid numeric value '{value_str}' for {metric_key}")
+                        all_correct = False
+                        continue
+                
+                extracted_dict[metric_key] = extracted_value
+                
+                # Compare values with appropriate tolerance
+                if metric_key == "shot_id":
+                    if extracted_value != expected_value:
+                        all_correct = False
+                else:
+                    if abs(extracted_value - expected_value) >= 0.01:
+                        all_correct = False
             
             if all_correct:
                 print(f"✅ {filename}: PASS")
                 passed += 1
             else:
                 print(f"❌ {filename}: FAIL")
-                print(f"   Expected: {expected_values}")
-                print(f"   Got:      {extracted_values}")
+                print(f"   Expected: {expected_dict}")
+                print(f"   Got:      {extracted_dict}")
                 
         except Exception as e:
             print(f"❌ {filename}: ERROR - {e}")
@@ -90,7 +113,7 @@ def quick_test():
     print("=== Quick Validation Test ===")
     
     test_image = "photos/2025-07-01_1941_shot1.png"
-    expected = [36, 35.5, 2, 0.54]
+    expected = {"shot_id": 14, "distance_to_pin": 36, "carry": 35.5, "from_pin": 2, "sg_individual": 0.54}
     
     if not os.path.exists(test_image):
         print(f"❌ Test image not found: {test_image}")
@@ -100,12 +123,39 @@ def quick_test():
     results = ocr.extract_from_image(test_image)
     
     print(f"Image: {test_image}")
-    print(f"Results: {list(results.values())}")
+    print(f"Results: {results}")
     print(f"Expected: {expected}")
     
     # Quick validation
-    extracted = [float(results[label].replace('+', '')) for label in ocr.labels]
-    success = all(abs(e - x) < 0.01 for e, x in zip(extracted, expected))
+    success = True
+    for metric_key, expected_value in expected.items():
+        if metric_key not in results:
+            success = False
+            break
+        
+        value_str = results[metric_key]
+        
+        if metric_key == "shot_id":
+            try:
+                extracted_value = int(value_str)
+                if extracted_value != expected_value:
+                    success = False
+                    break
+            except ValueError:
+                success = False
+                break
+        else:
+            try:
+                if '+' in value_str:
+                    extracted_value = float(value_str.replace('+', ''))
+                else:
+                    extracted_value = float(value_str)
+                if abs(extracted_value - expected_value) >= 0.01:
+                    success = False
+                    break
+            except ValueError:
+                success = False
+                break
     
     if success:
         print("✅ Quick test PASSED")

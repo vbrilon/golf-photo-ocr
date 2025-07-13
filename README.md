@@ -4,7 +4,8 @@ Simple, accurate OCR system for extracting golf metrics from screenshots. Achiev
 
 ## What it does
 
-Extracts 4 golf metrics from golf app screenshots:
+Extracts 5 golf metrics from golf app screenshots:
+- **Shot ID** (shot list number)
 - **Distance to Pin** (yards)
 - **Carry** (yards) 
 - **From Pin** (yards)

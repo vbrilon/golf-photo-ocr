@@ -33,6 +33,10 @@ class GolfOCR:
             label for label, config in metrics.items() 
             if config.get("expect_decimal", False)
         }
+        self.pattern_metrics = {
+            label: config.get("pattern") for label, config in metrics.items() 
+            if config.get("pattern")
+        }
         
         if self.verbose:
             print(f"Loaded configuration for {len(self.labels)} metrics")
@@ -71,53 +75,66 @@ class GolfOCR:
         return config
     
     def extract_best_number(self, ocr_results: List, box_center: Tuple[float, float], 
-                           expect_decimal: bool = False) -> str:
+                           expect_decimal: bool = False, pattern: str = None) -> str:
         """
-        Extract the best numeric candidate from OCR results based on proximity to box center
+        Extract the best candidate from OCR results based on proximity to box center
         
         Args:
             ocr_results: List of (bbox, text, confidence) from EasyOCR
             box_center: Expected center of the bounding box
             expect_decimal: Whether to prefer decimal values
+            pattern: Optional regex pattern to match (e.g., "#\\s*(\\d+)" for shot ID)
             
         Returns:
-            Best numeric string found, or empty string if none found
+            Best candidate string found, or empty string if none found
         """
         candidates = []
         
         for bbox, text, conf in ocr_results:
             clean_text = text.strip()
             
-            # Skip if no digits found
-            if not re.search(r'\d', clean_text):
-                continue
+            if self.verbose:
+                print(f"    Checking text: '{clean_text}'")
             
-            # Extract number with optional sign
-            match = re.search(r'[+-]?\d+\.?\d*', clean_text)
-            if not match:
-                continue
+            # Use custom pattern if provided, otherwise use default numeric pattern
+            if pattern:
+                match = re.search(pattern, clean_text)
+                if not match:
+                    continue
+                extracted_value = match.group(1)  # Extract from capture group
+            else:
+                # Skip if no digits found
+                if not re.search(r'\d', clean_text):
+                    continue
+                
+                # Extract number with optional sign
+                match = re.search(r'[+-]?\d+\.?\d*', clean_text)
+                if not match:
+                    continue
+                
+                extracted_value = match.group(0)
+                
+                # Handle explicit + sign in original text
+                if '+' in clean_text and not extracted_value.startswith('+'):
+                    extracted_value = '+' + extracted_value.lstrip('+-')
             
-            num_str = match.group(0)
-            
-            # Handle explicit + sign in original text
-            if '+' in clean_text and not num_str.startswith('+'):
-                num_str = '+' + num_str.lstrip('+-')
-            
-            # Calculate distance from expected center
+            # Calculate distance from expected center (for pattern matches, distance is less important)
             x_coords = [p[0] for p in bbox]
             y_coords = [p[1] for p in bbox]
             text_center = (sum(x_coords) / 4, sum(y_coords) / 4)
             
             distance = math.hypot(text_center[0] - box_center[0], text_center[1] - box_center[1])
             
-            # Apply decimal preference bonus
-            decimal_bonus = -10.0 if expect_decimal and '.' in num_str else 0.0
-            score = distance + decimal_bonus
+            # Apply decimal preference bonus (only for numeric extraction)
+            decimal_bonus = -10.0 if not pattern and expect_decimal and '.' in extracted_value else 0.0
             
-            candidates.append((score, num_str, conf))
+            # For pattern matches, prioritize by confidence rather than distance
+            score = distance + decimal_bonus if not pattern else -conf * 100
+            
+            candidates.append((score, extracted_value, conf))
             
             if self.verbose:
-                print(f"    Candidate: '{num_str}' (score: {score:.1f}, conf: {conf:.2f})")
+                print(f"    Candidate: '{extracted_value}' (score: {score:.1f}, conf: {conf:.2f})")
         
         if not candidates:
             return ""
@@ -160,17 +177,32 @@ class GolfOCR:
             # Run OCR
             ocr_results = self.reader.readtext(gray)
             
-            # Find best numeric candidate
+            # Extract value using unified method
             box_center = (w / 2, h / 2)
             expect_decimal = label in self.decimal_metrics
+            pattern = self.pattern_metrics.get(label)  # None if no pattern defined
             
-            value = self.extract_best_number(ocr_results, box_center, expect_decimal)
+            value = self.extract_best_number(ocr_results, box_center, expect_decimal, pattern)
             results[label] = value
             
             if self.verbose:
                 print(f"    Result: '{value}'")
         
-        return results
+        # Map output keys according to PLAN.md requirements
+        output_mapping = {
+            "SHOT_ID": "shot_id",
+            "DISTANCE_TO_PIN": "distance_to_pin", 
+            "CARRY": "carry",
+            "FROM_PIN": "from_pin",
+            "STROKES_GAINED": "sg_individual"
+        }
+        
+        mapped_results = {}
+        for label, value in results.items():
+            output_key = output_mapping.get(label, label.lower())
+            mapped_results[output_key] = value
+        
+        return mapped_results
     
     def process_directory(self, input_dir: str, output_dir: str = "output") -> Dict[str, Dict[str, str]]:
         """
