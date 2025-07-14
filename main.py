@@ -12,6 +12,7 @@ import math
 import os
 import re
 import csv
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import glob
 
@@ -73,6 +74,44 @@ class GolfOCR:
             print(f"Configuration validated successfully: {config_path}")
         
         return config
+    
+    def convert_date_to_yyyymmdd(self, date_text: str) -> str:
+        """
+        Convert date text like 'JULY 1, 2025' to YYYYMMDD format like '20250701'
+        
+        Args:
+            date_text: Date string in format 'MONTH DAY, YEAR'
+            
+        Returns:
+            Date in YYYYMMDD format, or empty string if parsing fails
+        """
+        if not date_text:
+            return ""
+        
+        month_map = {
+            'JANUARY': '01', 'FEBRUARY': '02', 'MARCH': '03', 'APRIL': '04',
+            'MAY': '05', 'JUNE': '06', 'JULY': '07', 'AUGUST': '08',
+            'SEPTEMBER': '09', 'OCTOBER': '10', 'NOVEMBER': '11', 'DECEMBER': '12'
+        }
+        
+        try:
+            # Parse format like "JULY 1, 2025" or "JULY 1,2025"
+            match = re.match(r'([A-Z]+)\s+(\d{1,2}),\s*(\d{4})', date_text.upper())
+            if not match:
+                return ""
+            
+            month_name, day, year = match.groups()
+            
+            if month_name not in month_map:
+                return ""
+            
+            month_num = month_map[month_name]
+            day_num = day.zfill(2)  # Zero-pad day to 2 digits
+            
+            return f"{year}{month_num}{day_num}"
+            
+        except Exception:
+            return ""
     
     def extract_best_number(self, ocr_results: List, box_center: Tuple[float, float], 
                            expect_decimal: bool = False, pattern: str = None) -> str:
@@ -183,6 +222,13 @@ class GolfOCR:
             pattern = self.pattern_metrics.get(label)  # None if no pattern defined
             
             value = self.extract_best_number(ocr_results, box_center, expect_decimal, pattern)
+            
+            # Special handling for DATE metric - convert to YYYYMMDD format
+            if label == "DATE" and value:
+                value = self.convert_date_to_yyyymmdd(value)
+                if self.verbose:
+                    print(f"    Converted date to: '{value}'")
+            
             results[label] = value
             
             if self.verbose:
@@ -190,6 +236,7 @@ class GolfOCR:
         
         # Map output keys according to PLAN.md requirements
         output_mapping = {
+            "DATE": "date",
             "SHOT_ID": "shot_id",
             "DISTANCE_TO_PIN": "distance_to_pin", 
             "CARRY": "carry",
