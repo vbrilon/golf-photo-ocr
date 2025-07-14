@@ -113,6 +113,40 @@ class GolfOCR:
         except Exception:
             return ""
     
+    def parse_yardage_range(self, range_text: str) -> Tuple[str, str, str]:
+        """
+        Parse yardage range text like '30-50' into components
+        
+        Args:
+            range_text: Range string like '30-50' or '30-50 yards'
+            
+        Returns:
+            Tuple of (yardage_range, yardage_from, yardage_to) or empty strings if parsing fails
+        """
+        if not range_text:
+            return "", "", ""
+        
+        try:
+            # Extract just the range portion (e.g., "30-50" from "30-50 yards")
+            range_match = re.search(r'(\d+-\d+)', range_text)
+            if not range_match:
+                return "", "", ""
+            
+            range_part = range_match.group(1)
+            
+            # Split the range into from/to components
+            if '-' in range_part:
+                parts = range_part.split('-')
+                if len(parts) == 2:
+                    yardage_from = parts[0].strip()
+                    yardage_to = parts[1].strip()
+                    return range_part, yardage_from, yardage_to
+            
+            return "", "", ""
+            
+        except Exception:
+            return "", "", ""
+    
     def extract_best_number(self, ocr_results: List, box_center: Tuple[float, float], 
                            expect_decimal: bool = False, pattern: str = None) -> str:
         """
@@ -241,13 +275,23 @@ class GolfOCR:
             "DISTANCE_TO_PIN": "distance_to_pin", 
             "CARRY": "carry",
             "FROM_PIN": "from_pin",
-            "STROKES_GAINED": "sg_individual"
+            "STROKES_GAINED": "sg_individual",
+            "YARDAGE_RANGE": "yardage_range"
         }
         
         mapped_results = {}
         for label, value in results.items():
             output_key = output_mapping.get(label, label.lower())
             mapped_results[output_key] = value
+        
+        # Special handling for yardage range - parse into 3 separate metrics
+        if "YARDAGE_RANGE" in results:
+            yardage_range_text = results["YARDAGE_RANGE"]
+            yardage_range, yardage_from, yardage_to = self.parse_yardage_range(yardage_range_text)
+            
+            mapped_results["yardage_range"] = yardage_range
+            mapped_results["yardage_from"] = yardage_from
+            mapped_results["yardage_to"] = yardage_to
         
         return mapped_results
     
