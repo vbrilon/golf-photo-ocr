@@ -4,12 +4,16 @@ Simple, accurate OCR system for extracting golf metrics from screenshots. Achiev
 
 ## What it does
 
-Extracts 5 golf metrics from golf app screenshots:
+Extracts 9 golf metrics from golf app screenshots:
+- **Date** (converted to YYYYMMDD format)
 - **Shot ID** (shot list number)
 - **Distance to Pin** (yards)
 - **Carry** (yards) 
 - **From Pin** (yards)
 - **Strokes Gained** (+/- value)
+- **Yardage Range** (e.g., "30-50", "50-75")
+- **Yardage From** (lower bound of range)
+- **Yardage To** (upper bound of range)
 
 ## Setup
 
@@ -49,9 +53,26 @@ python main.py --single-image photos/your-image.png --verbose
 
 ## Output
 
-Creates two files:
-- `golf_ocr_results.json` - Complete results
-- `golf_ocr_results.csv` - Spreadsheet format
+Creates two files with 9 metrics per image:
+- `golf_ocr_results.json` - Complete results with all metrics
+- `golf_ocr_results.csv` - Spreadsheet format for analysis
+
+Example output:
+```json
+{
+  "2025-07-12_1105_shot1.png": {
+    "date": "20250711",
+    "shot_id": "1", 
+    "distance_to_pin": "66",
+    "carry": "59.8",
+    "from_pin": "20",
+    "sg_individual": "-0.72",
+    "yardage_range": "50-75",
+    "yardage_from": "50", 
+    "yardage_to": "75"
+  }
+}
+```
 
 ## Requirements
 
@@ -61,22 +82,33 @@ Creates two files:
 
 ## Accuracy
 
-**100% accuracy** on all test images. Direct decimal and sign extraction - no complex processing needed.
+**100% accuracy** on all 9 metrics across 40 test images (360 validation points). Uses EasyOCR neural engine with optimized bounding boxes and pattern matching.
 
 ## Testing
 
 Validate the system accuracy:
 
 ```bash
-# Quick test (single image)
-python test_validation.py --quick
+# Test single image
+python main.py --single-image photos/2025-07-12_1105_shot1.png --verbose
 
-# Full ground truth validation (all 15 test images)
-python test_validation.py
+# Process all test images 
+python main.py --input-dir photos --output-dir output
+
+# Ground truth validation data available in config.json
 ```
+
+## Architecture
+
+- **Engine**: EasyOCR neural OCR system
+- **Approach**: Configuration-driven hardcoded bounding boxes
+- **Pattern matching**: Regex patterns for structured data (dates, shot IDs, yardage ranges)
+- **Single extraction**: Yardage range generates 3 metrics automatically
+- **Ground truth**: Complete validation dataset in `config.json`
 
 ## Support
 
-- Check `docs/` folder for technical details
+- Check `CLAUDE.md` for comprehensive technical documentation
+- Check `docs/PLAN.md` for implementation details and status
 - Run with `--verbose` flag to see processing steps
-- Ensure images show the 4 white metric boxes clearly
+- All bounding box coordinates and patterns configurable in `config.json`
