@@ -67,13 +67,74 @@ class GolfOCR:
                 raise ValueError(f"Missing required metric in configuration: {metric}")
             if "bbox" not in metrics[metric]:
                 raise ValueError(f"Missing 'bbox' for metric: {metric}")
-            if len(metrics[metric]["bbox"]) != 4:
-                raise ValueError(f"Invalid bbox format for {metric}: must be [x, y, width, height]")
+            
+            # Validate bounding box
+            self._validate_bbox(metrics[metric]["bbox"], metric)
+        
+        # Validate all metrics have valid bounding boxes
+        for metric_name, metric_config in metrics.items():
+            if "bbox" in metric_config:
+                self._validate_bbox(metric_config["bbox"], metric_name)
         
         if self.verbose:
             print(f"Configuration validated successfully: {config_path}")
         
         return config
+    
+    def _validate_bbox(self, bbox: List, metric_name: str) -> None:
+        """
+        Validate bounding box coordinates
+        
+        Args:
+            bbox: Bounding box in format [x, y, width, height]
+            metric_name: Name of the metric for error reporting
+            
+        Raises:
+            ValueError: If bounding box is invalid
+        """
+        # Check format
+        if not isinstance(bbox, list):
+            raise ValueError(f"Invalid bbox for {metric_name}: must be a list, got {type(bbox).__name__}")
+        
+        if len(bbox) != 4:
+            raise ValueError(f"Invalid bbox format for {metric_name}: must be [x, y, width, height], got {len(bbox)} elements")
+        
+        # Check all elements are numbers
+        for i, coord in enumerate(bbox):
+            if not isinstance(coord, (int, float)):
+                coord_names = ["x", "y", "width", "height"]
+                raise ValueError(f"Invalid bbox for {metric_name}: {coord_names[i]} must be a number, got {type(coord).__name__}")
+        
+        x, y, width, height = bbox
+        
+        # Check non-negative coordinates
+        if x < 0:
+            raise ValueError(f"Invalid bbox for {metric_name}: x coordinate cannot be negative, got {x}")
+        if y < 0:
+            raise ValueError(f"Invalid bbox for {metric_name}: y coordinate cannot be negative, got {y}")
+        
+        # Check positive dimensions
+        if width <= 0:
+            raise ValueError(f"Invalid bbox for {metric_name}: width must be positive, got {width}")
+        if height <= 0:
+            raise ValueError(f"Invalid bbox for {metric_name}: height must be positive, got {height}")
+        
+        # Check reasonable maximum values (golf app screenshots are typically ~2048x1536 or similar)
+        max_dimension = 10000  # Generous upper bound
+        if x > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: x coordinate too large ({x} > {max_dimension})")
+        if y > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: y coordinate too large ({y} > {max_dimension})")
+        if width > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: width too large ({width} > {max_dimension})")
+        if height > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: height too large ({height} > {max_dimension})")
+        
+        # Check that bounding box doesn't extend beyond reasonable image bounds
+        if x + width > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: bounding box extends beyond reasonable image width (x + width = {x + width} > {max_dimension})")
+        if y + height > max_dimension:
+            raise ValueError(f"Invalid bbox for {metric_name}: bounding box extends beyond reasonable image height (y + height = {y + height} > {max_dimension})")
     
     def convert_date_to_yyyymmdd(self, date_text: str) -> str:
         """
