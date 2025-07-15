@@ -55,36 +55,68 @@ def test_ground_truth():
                 
                 value_str = results[metric_key]
                 
-                # Handle different value types
+                # Normalize expected value to match system output type
                 if metric_key == "shot_id":
-                    # Shot ID should be integer
+                    # Shot ID: convert both to int
                     try:
-                        extracted_value = int(value_str)
+                        extracted_value = int(value_str) if value_str else None
+                        expected_norm = int(expected_value) if expected_value else None
                     except ValueError:
-                        print(f"❌ {filename}: Invalid shot_id '{value_str}' (not integer)")
+                        print(f"❌ {filename}: Invalid shot_id '{value_str}' or expected '{expected_value}'")
                         all_correct = False
                         continue
+                elif metric_key in ["date", "yardage_range"]:
+                    # String metrics: compare as strings
+                    extracted_value = value_str
+                    expected_norm = expected_value
                 else:
-                    # Numeric metrics (handle signs)
-                    try:
-                        if '+' in value_str:
-                            extracted_value = float(value_str.replace('+', ''))
-                        else:
-                            extracted_value = float(value_str)
-                    except ValueError:
-                        print(f"❌ {filename}: Invalid numeric value '{value_str}' for {metric_key}")
-                        all_correct = False
-                        continue
+                    # Numeric metrics: convert both to float, handle signs and empty values
+                    if not value_str or value_str.strip() == "":
+                        extracted_value = None
+                    else:
+                        try:
+                            if '+' in value_str:
+                                extracted_value = float(value_str.replace('+', ''))
+                            else:
+                                extracted_value = float(value_str)
+                        except ValueError:
+                            print(f"❌ {filename}: Invalid numeric value '{value_str}' for {metric_key}")
+                            all_correct = False
+                            continue
+                    
+                    # Normalize expected value
+                    if not expected_value or expected_value.strip() == "":
+                        expected_norm = None
+                    else:
+                        try:
+                            if '+' in expected_value:
+                                expected_norm = float(expected_value.replace('+', ''))
+                            else:
+                                expected_norm = float(expected_value)
+                        except ValueError:
+                            print(f"❌ {filename}: Invalid expected numeric value '{expected_value}' for {metric_key}")
+                            all_correct = False
+                            continue
                 
                 extracted_dict[metric_key] = extracted_value
                 
-                # Compare values with appropriate tolerance
+                # Compare normalized values
                 if metric_key == "shot_id":
-                    if extracted_value != expected_value:
+                    if extracted_value != expected_norm:
+                        all_correct = False
+                elif metric_key in ["date", "yardage_range"]:
+                    if extracted_value != expected_norm:
                         all_correct = False
                 else:
-                    if abs(extracted_value - expected_value) >= 0.01:
+                    # Numeric comparison with tolerance
+                    if expected_norm is None:
+                        if extracted_value is not None:
+                            all_correct = False
+                    elif extracted_value is None:
                         all_correct = False
+                    else:
+                        if abs(extracted_value - expected_norm) >= 0.01:
+                            all_correct = False
             
             if all_correct:
                 print(f"✅ {filename}: PASS")
