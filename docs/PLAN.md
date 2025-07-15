@@ -91,29 +91,18 @@ All 9 target metrics have been successfully implemented with 100% accuracy:
 - **Total test points**: 360 (40 images × 9 metrics)
 - **Accuracy**: 100% (360/360 successful extractions)
 - **Coverage**: Complete validation for production use
+- **Test Reliability**: Fixed type comparison bugs in validation (2025-07-15)
+- **Regression Protection**: Full test suite passes after code cleanup
 
-## Technical Notes
-
-### Successful Pattern Matching Examples
-- **Shot ID**: `#\s*(\d+)` → extracts number after #
-- **Date**: `((?:JANUARY|...|DECEMBER)\s+\d{1,2},\s*\d{4})` → converts to YYYYMMDD
-- **Yardage Range**: `(\d+-\d+)\s*(?:yards?|yds?)?` → extracts range like "30-50" from "30-50 yds"
+## Technical Reference
 
 ### Bounding Box Configuration
-All coordinates use format `[x, y, width, height]`:
-- DATE: `[985, 41, 301, 116]`
-- SHOT_ID: `[60, 175, 84, 81]`
-- DISTANCE_TO_PIN: `[184, 396, 175, 148]`
-- CARRY: `[147, 705, 252, 145]`
-- FROM_PIN: `[188, 982, 170, 136]`
-- STROKES_GAINED: `[94, 1249, 323, 149]`
-- YARDAGE_RANGE: `[1783, 525, 150, 60]`
+All coordinates use format `[x, y, width, height]` - see config.json for current values
 
 ### Key Learnings
 - Hardcoded coordinates more reliable than dynamic detection
-- Pattern matching essential for structured data
+- Pattern matching essential for structured data (shot IDs, dates, ranges)
 - Configuration externalization enables easy tuning
-- Comprehensive ground truth critical for regression protection
 - EasyOCR significantly outperforms Tesseract for this use case
 
 ## Progress Summary
@@ -122,7 +111,46 @@ All coordinates use format `[x, y, width, height]`:
 - ✅ **Comprehensive ground truth** for regression testing
 - ✅ **All metrics validated** with complete test coverage
 
-## Future Maintenance
-- Regular regression testing using ground truth data in config.json
+## Maintenance & Development Guidelines
+
+### **Code Quality Status**
+- ✅ **Dependencies cleaned** - Only essential packages remain in requirements.txt
+- ✅ **Dead code removed** - No unused files or debug artifacts
+- ✅ **Test validation robust** - Handles type differences between ground truth and system output
+- ✅ **Feature branch workflow** - All changes done in feature branches, merged to main
+
+### **Regular Maintenance Tasks**
+- Run regression testing: `python main.py --input-dir photos --output-dir output`
+- Run validation testing: `python test_validation.py` (should show 100% success)
 - Monitor for new golf app UI changes that might affect bounding boxes
+- Update ground truth data if new test images are added
+
+### **Development Best Practices** 
+- Always use feature branches for development work
+- Run both main application and validation tests before merging
+- Maintain 100% accuracy on regression tests
+- Update documentation after architectural changes
 - Consider adding new metrics following the established pattern-matching approach
+
+## Code Quality Improvements
+
+### ✅ Completed (2025-07-15)
+- [x] **Remove dead code** - Deleted photos/detect.py and unused debug images (debug.png, debug_largest_box.png)
+- [x] **Clean up dependencies** - Removed unused packages from requirements.txt (pandas, matplotlib, pytest)
+- [x] **Fix test validation** - Resolved type comparison bugs in test_validation.py with proper normalization
+- [x] **Code audit completed** - Identified technical debt and optimization opportunities
+- [x] **Documentation updated** - Added technical debt findings to CLAUDE.md
+- [x] **Feature branch workflow** - Used feature/code-cleanup branch for cleanup work
+
+### High Priority (Remaining)
+- [ ] **Add input validation** - Validate bounding box coordinates in GolfOCR constructor
+- [ ] **Extract configuration validation** - Move config validation logic into separate method
+- [ ] **Consolidate error handling** - Standardize exception handling patterns across methods
+
+### Medium Priority  
+- [ ] **Clean up config.json** - Remove unused fields (typical_range, note, ocr_settings sections)  
+- [ ] **Extract shared utility functions** - Create reusable validation/parsing utilities
+
+### Low Priority
+- [ ] **Consider dependency injection** - Inject OCR reader for improved testability
+- [ ] **Add logging framework** - Replace print statements with proper logging for better debugging

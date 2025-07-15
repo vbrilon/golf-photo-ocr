@@ -21,7 +21,7 @@ The system processes images from the `photos/` directory and extracts these valu
 
 - **Python Version**: 3.13.5
 - **Virtual Environment**: Located at project root
-- **Dependencies**: easyocr, opencv-python, numpy, pillow
+- **Dependencies**: easyocr, opencv-python, numpy, pillow (cleaned up: removed pandas, matplotlib, pytest)
 - **Environment Setup**: The project uses a Python virtual environment (venv)
 
 ## Project Structure
@@ -30,7 +30,8 @@ The system processes images from the `photos/` directory and extracts these valu
 /
 ├── main.py                 # Main CLI application (EasyOCR-based system)
 ├── config.json             # Configuration with bounding boxes and ground truth
-├── photos/                 # Input images (42 golf app screenshots)
+├── photos/                 # Input images (40 golf app screenshots)
+├── test_validation.py      # Validation test with ground truth comparison
 ├── output/                 # Results (JSON and CSV files)
 ├── docs/
 │   └── PLAN.md            # Project plan and next steps
@@ -112,56 +113,22 @@ The system generates both JSON and CSV files with these fields:
 
 ## Ground Truth & Testing
 
-### **Comprehensive Test Coverage**
+### **Test Coverage & Validation**
 - **40 test images** with complete ground truth data in `config.json`
 - **360 total validation points** (9 metrics × 40 images)
 - **100% accuracy** maintained across all metrics
-- **Regression protection** for future development
-
-### **Date Extraction Patterns**
-- **July 1, 2025** → "20250701" (1 image)
-- **July 10, 2025** → "20250710" (10 images)  
-- **July 11, 2025** → "20250711" (16 images)
-- **Missing dates** → "" (13 images without visible dates)
-
-### **Validation Examples**
-```
-✅ 2025-07-01_1939_shot1.png: date=20250701, shot_id=3, distance_to_pin=38, carry=39.9, from_pin=6, sg_individual=+0.22, yardage_range="", yardage_from="", yardage_to=""
-✅ 2025-07-12_1105_shot1.png: date=20250711, shot_id=1, distance_to_pin=66, carry=59.8, from_pin=20, sg_individual=-0.72, yardage_range="50-75", yardage_from="50", yardage_to="75"
-✅ 2025-07-01_1942_shot1.png: date="", shot_id=25, distance_to_pin=40, carry=44.0, from_pin=13, sg_individual=-0.15, yardage_range="30-50", yardage_from="30", yardage_to="50"
-```
+- **Run tests**: `python test_validation.py` for full validation
+- **Type-safe validation**: Fixed comparison logic handles string/numeric type differences
+- **Regression protection**: Validates system maintains accuracy after code changes
 
 ## Architecture Decisions & Discoveries
-
-### **Revolutionary Simplification**
-- **80% code reduction**: From 1000+ lines to ~300 lines
-- **Zero mathematical transformations**: Direct OCR extraction
-- **Pattern-based extraction**: Leverages EasyOCR's neural capabilities
-- **Configuration-driven**: All settings externalized to `config.json`
-
-### **Date Extraction Implementation**
-**Challenge**: Extract and convert dates like "JULY 1, 2025" to "20250701"
-**Solution**: 
-- Regex pattern: `((?:JANUARY|...|DECEMBER)\s+\d{1,2},\s*\d{4})`
-- Month name mapping to numbers
-- Automatic zero-padding for single-digit days
-- Handles variations: "JULY 1, 2025" and "JULY 1,2025" (space-flexible)
-
-### **Yardage Range Implementation**
-**Challenge**: Extract yardage range like "30-50 yds" and parse into 3 separate metrics
-**Solution**:
-- Single bounding box [1783, 525, 150, 60] captures full text like "30-50 yds"
-- Regex pattern: `(\d+-\d+)\s*(?:yards?|yds?)?` handles variations ("30-50 yds", "50-75 yards")
-- Parse helper method `parse_yardage_range()` splits "30-50" into components
-- Generates 3 output fields: yardage_range="30-50", yardage_from="30", yardage_to="50"
-- Graceful handling of missing data (empty strings for all 3 fields)
 
 ### **Key Technical Insights**
 1. **EasyOCR superiority**: Neural OCR significantly outperforms Tesseract for this use case
 2. **Hardcoded coordinates**: More reliable than dynamic region detection
 3. **Pattern matching**: Essential for structured data like shot IDs and dates
-4. **Distance scoring**: Proximity-based candidate selection works well
-5. **Configuration externalization**: Enables easy tuning without code changes
+4. **Configuration externalization**: Enables easy tuning without code changes
+5. **Simple architecture**: ~300 lines total, 80% reduction from complex previous versions
 
 ## Development Workflow
 
@@ -179,13 +146,37 @@ The system generates both JSON and CSV files with these fields:
 - Maintain comprehensive test coverage for regression protection
 - Document all discoveries and architectural decisions in this file
 
+## Code Quality & Technical Debt
+
+### **Recent Code Quality Improvements** (2025-07-15)
+- ✅ **Removed Dead Code**: Deleted `photos/detect.py` and debug images (debug.png, debug_largest_box.png)
+- ✅ **Cleaned Dependencies**: Removed unused packages (pandas, matplotlib, pytest) from requirements.txt
+- ✅ **Fixed Test Validation**: Resolved type comparison bugs in test_validation.py with proper normalization
+- ⚠️ **Remaining Technical Debt**: Some config.json sections not actively used (typical_range, ocr_settings)
+
+### **Architecture Strengths**
+- **Single Responsibility**: Each method has clear, focused purpose
+- **Configuration-Driven**: All settings externalized to config.json
+- **Pattern-Based**: Successful use of regex patterns for structured data
+- **Error Handling**: Graceful handling of missing data with empty strings
+- **Testability**: Comprehensive ground truth enables regression protection
+
+### **Next Recommended Improvements**
+1. ✅ **Dead Code Removed**: Completed - deleted unused files and dependencies
+2. ✅ **Test Validation Fixed**: Completed - resolved type comparison issues
+3. **Input Validation**: Add validation for bounding box coordinates in GolfOCR constructor
+4. **Error Handling**: Standardize exception handling patterns across methods
+5. **Configuration Cleanup**: Remove unused fields from config.json
+6. **Logging**: Replace print statements with proper logging framework
+
 ## System Status: Production Ready
 - ✅ **100% Accuracy** on all 9 metrics
-- ✅ **42 images processed** successfully  
+- ✅ **40 images processed** successfully (with full ground truth coverage)
 - ✅ **Comprehensive testing** with full ground truth coverage (360 validation points)
 - ✅ **Robust error handling** for missing data
-- ✅ **Clean architecture** with minimal dependencies
+- ✅ **Clean architecture** with minimal dependencies (recently cleaned up)
 - ✅ **Full documentation** and regression protection
+- ✅ **Code quality improvements** completed (dead code removal, dependency cleanup, test fixes)
 
 ## Future Development Guidelines
 
@@ -198,10 +189,12 @@ The system generates both JSON and CSV files with these fields:
 
 ### **Maintenance Checklist**
 - Run full regression test: `python main.py --input-dir photos --output-dir output`
-- Verify 100% success rate and output accuracy
+- Run validation test: `python test_validation.py` (verifies 100% accuracy against ground truth)
+- Verify 100% success rate and output accuracy on both tests
 - Monitor for golf app UI changes that might affect bounding boxes
 - Update ground truth data if new test images are added
 - Keep documentation current in both CLAUDE.md and PLAN.md
+- Use feature branches for all development work (never work directly in main)
 
 ### **Troubleshooting Common Issues**
 - **Empty extractions**: Check bounding box coordinates and OCR confidence
