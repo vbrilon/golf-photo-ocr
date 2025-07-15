@@ -181,11 +181,15 @@ class GolfOCR:
             # Parse format like "JULY 1, 2025" or "JULY 1,2025"
             match = re.match(r'([A-Z]+)\s+(\d{1,2}),\s*(\d{4})', date_text.upper())
             if not match:
+                if self.verbose:
+                    print(f"    Date parsing: No match found for pattern in '{date_text}'")
                 return ""
             
             month_name, day, year = match.groups()
             
             if month_name not in month_map:
+                if self.verbose:
+                    print(f"    Date parsing: Unknown month '{month_name}' in '{date_text}'")
                 return ""
             
             month_num = month_map[month_name]
@@ -193,7 +197,13 @@ class GolfOCR:
             
             return f"{year}{month_num}{day_num}"
             
-        except Exception:
+        except (AttributeError, ValueError, IndexError) as e:
+            if self.verbose:
+                print(f"    Date parsing error for '{date_text}': {e}")
+            return ""
+        except Exception as e:
+            if self.verbose:
+                print(f"    Unexpected date parsing error for '{date_text}': {e}")
             return ""
     
     def parse_yardage_range(self, range_text: str) -> Tuple[str, str, str]:
@@ -213,6 +223,8 @@ class GolfOCR:
             # Extract just the range portion (e.g., "30-50" from "30-50 yards")
             range_match = re.search(r'(\d+-\d+)', range_text)
             if not range_match:
+                if self.verbose:
+                    print(f"    Yardage range parsing: No range pattern found in '{range_text}'")
                 return "", "", ""
             
             range_part = range_match.group(1)
@@ -225,9 +237,17 @@ class GolfOCR:
                     yardage_to = parts[1].strip()
                     return range_part, yardage_from, yardage_to
             
+            if self.verbose:
+                print(f"    Yardage range parsing: Could not split range '{range_part}'")
             return "", "", ""
             
-        except Exception:
+        except (AttributeError, ValueError, IndexError) as e:
+            if self.verbose:
+                print(f"    Yardage range parsing error for '{range_text}': {e}")
+            return "", "", ""
+        except Exception as e:
+            if self.verbose:
+                print(f"    Unexpected yardage range parsing error for '{range_text}': {e}")
             return "", "", ""
     
     def extract_best_number(self, ocr_results: List, box_center: Tuple[float, float], 
@@ -315,7 +335,7 @@ class GolfOCR:
         # Load image
         image = cv2.imread(image_path)
         if image is None:
-            raise ValueError(f"Could not load image: {image_path}")
+            raise ValueError(f"Could not load image: {image_path}. Check that the file exists and is a valid image format.")
         
         results = {}
         
@@ -419,9 +439,13 @@ class GolfOCR:
                 else:
                     print(f"✅ {filename}")
                     
-            except Exception as e:
+            except ValueError as e:
                 print(f"❌ {filename}: {e}")
                 all_results[filename] = {"error": str(e)}
+            except Exception as e:
+                error_msg = f"Unexpected error processing {filename}: {e}"
+                print(f"❌ {error_msg}")
+                all_results[filename] = {"error": error_msg}
         
         # Save results
         self.save_results(all_results, output_dir)
@@ -431,35 +455,43 @@ class GolfOCR:
     def save_results(self, results: Dict[str, Dict[str, str]], output_dir: str):
         """Save results to JSON and CSV files"""
         
-        # Save JSON
-        json_path = os.path.join(output_dir, "golf_ocr_results.json")
-        with open(json_path, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"Results saved to {json_path}")
-        
-        # Save CSV
-        csv_path = os.path.join(output_dir, "golf_ocr_results.csv")
-        
-        # Get all metric names for CSV headers
-        all_metrics = set()
-        for file_results in results.values():
-            all_metrics.update(file_results.keys())
-        
-        # Remove 'error' from metrics if present
-        all_metrics.discard('error')
-        headers = ['filename'] + sorted(all_metrics)
-        
-        with open(csv_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
+        try:
+            # Save JSON
+            json_path = os.path.join(output_dir, "golf_ocr_results.json")
+            with open(json_path, 'w') as f:
+                json.dump(results, f, indent=2)
+            print(f"Results saved to {json_path}")
             
-            for filename, file_results in results.items():
-                row = [filename]
-                for metric in headers[1:]:  # Skip filename
-                    row.append(file_results.get(metric, ''))
-                writer.writerow(row)
+        except (IOError, OSError) as e:
+            raise ValueError(f"Failed to save JSON results to {json_path}: {e}")
         
-        print(f"Results saved to {csv_path}")
+        try:
+            # Save CSV
+            csv_path = os.path.join(output_dir, "golf_ocr_results.csv")
+        
+            # Get all metric names for CSV headers
+            all_metrics = set()
+            for file_results in results.values():
+                all_metrics.update(file_results.keys())
+            
+            # Remove 'error' from metrics if present
+            all_metrics.discard('error')
+            headers = ['filename'] + sorted(all_metrics)
+            
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                
+                for filename, file_results in results.items():
+                    row = [filename]
+                    for metric in headers[1:]:  # Skip filename
+                        row.append(file_results.get(metric, ''))
+                    writer.writerow(row)
+            
+            print(f"Results saved to {csv_path}")
+            
+        except (IOError, OSError) as e:
+            raise ValueError(f"Failed to save CSV results to {csv_path}: {e}")
 
 
 def main():
@@ -481,8 +513,10 @@ def main():
             print(f"\n=== Results for {args.single_image} ===")
             for metric, value in results.items():
                 print(f"{metric}: {value}")
-        except Exception as e:
+        except ValueError as e:
             print(f"Error processing {args.single_image}: {e}")
+        except Exception as e:
+            print(f"Unexpected error processing {args.single_image}: {e}")
     else:
         # Process directory
         results = ocr.process_directory(args.input_dir, args.output_dir)
