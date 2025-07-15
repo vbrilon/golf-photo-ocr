@@ -55,31 +55,53 @@ class GolfOCR:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
         
-        # Validate required sections
-        if "metrics" not in config:
-            raise ValueError("Configuration file must contain 'metrics' section")
-        
-        metrics = config["metrics"]
-        required_metrics = ["DISTANCE_TO_PIN", "CARRY", "FROM_PIN", "STROKES_GAINED"]
-        
-        for metric in required_metrics:
-            if metric not in metrics:
-                raise ValueError(f"Missing required metric in configuration: {metric}")
-            if "bbox" not in metrics[metric]:
-                raise ValueError(f"Missing 'bbox' for metric: {metric}")
-            
-            # Validate bounding box
-            self._validate_bbox(metrics[metric]["bbox"], metric)
-        
-        # Validate all metrics have valid bounding boxes
-        for metric_name, metric_config in metrics.items():
-            if "bbox" in metric_config:
-                self._validate_bbox(metric_config["bbox"], metric_name)
+        # Validate the loaded configuration
+        self._validate_config(config)
         
         if self.verbose:
             print(f"Configuration validated successfully: {config_path}")
         
         return config
+    
+    def _validate_config(self, config: dict) -> None:
+        """
+        Validate configuration structure and content
+        
+        Args:
+            config: Loaded configuration dictionary
+            
+        Raises:
+            ValueError: If configuration is invalid
+        """
+        # Validate required sections
+        if "metrics" not in config:
+            raise ValueError("Configuration file must contain 'metrics' section")
+        
+        metrics = config["metrics"]
+        if not isinstance(metrics, dict):
+            raise ValueError("Configuration 'metrics' section must be a dictionary")
+        
+        # Define required metrics for core functionality
+        required_metrics = ["DISTANCE_TO_PIN", "CARRY", "FROM_PIN", "STROKES_GAINED"]
+        
+        # Validate required metrics exist and have proper structure
+        for metric in required_metrics:
+            if metric not in metrics:
+                raise ValueError(f"Missing required metric in configuration: {metric}")
+            if not isinstance(metrics[metric], dict):
+                raise ValueError(f"Metric '{metric}' must be a dictionary")
+            if "bbox" not in metrics[metric]:
+                raise ValueError(f"Missing 'bbox' for metric: {metric}")
+            
+            # Validate bounding box coordinates
+            self._validate_bbox(metrics[metric]["bbox"], metric)
+        
+        # Validate all metrics (including optional ones) have valid bounding boxes
+        for metric_name, metric_config in metrics.items():
+            if not isinstance(metric_config, dict):
+                raise ValueError(f"Metric '{metric_name}' must be a dictionary")
+            if "bbox" in metric_config:
+                self._validate_bbox(metric_config["bbox"], metric_name)
     
     def _validate_bbox(self, bbox: List, metric_name: str) -> None:
         """
