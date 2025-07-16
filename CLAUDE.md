@@ -111,24 +111,15 @@ The system generates both JSON and CSV files with these fields:
 - `yardage_from` - Lower bound of range (e.g., "30", "50")
 - `yardage_to` - Upper bound of range (e.g., "50", "75")
 
-## Ground Truth & Testing
+## Testing & Validation
 
-### **Test Coverage & Validation**
-- **40 test images** with complete ground truth data in `config.json`
-- **360 total validation points** (9 metrics × 40 images)
-- **100% accuracy** maintained across all metrics
-- **Run tests**: `python test_validation.py` for full validation
-- **Type-safe validation**: Fixed comparison logic handles string/numeric type differences
-- **Regression protection**: Validates system maintains accuracy after code changes
+### **Ground Truth System**
+- Complete test coverage with ground truth data in `config.json`
+- Comprehensive validation framework via `test_validation.py`
+- Type-safe validation with proper normalization
+- Regression protection for code changes
+- See PLAN.md for current accuracy metrics and test results
 
-## Architecture Decisions & Discoveries
-
-### **Key Technical Insights**
-1. **EasyOCR superiority**: Neural OCR significantly outperforms Tesseract for this use case
-2. **Hardcoded coordinates**: More reliable than dynamic region detection
-3. **Pattern matching**: Essential for structured data like shot IDs and dates
-4. **Configuration externalization**: Enables easy tuning without code changes
-5. **Simple architecture**: ~300 lines total, 80% reduction from complex previous versions
 
 ## Development Workflow
 
@@ -138,23 +129,21 @@ The system generates both JSON and CSV files with these fields:
 3. **Ground Truth Updates**: Update test data after successful implementation
 4. **Regression Testing**: Ensure existing metrics maintain 100% accuracy
 5. **User Consultation**: Consult before merging feature changes to main
+6. **Clean up**: After the feature is merged into main branch, delete the feature branch when it's no longer needed
 
-### **Best Practices**
+### **Development Best Practices**
+- Always use feature branches for development work
+- Run both main application and validation tests before merging
+- Maintain 100% accuracy on regression tests
+- Update documentation after architectural changes
+- Clean up feature branches after successful merge to main
 - Use existing pattern matching system for new metrics
 - Leverage configuration-driven approach for all settings
 - Update ground truth data immediately after successful extraction
 - Maintain comprehensive test coverage for regression protection
 - Document all discoveries and architectural decisions in this file
 
-## Code Quality & Architecture
-
-### **Recent Code Quality Improvements** (2025-07-15)
-- ✅ **Removed Dead Code**: Deleted `photos/detect.py` and debug images (debug.png, debug_largest_box.png)
-- ✅ **Cleaned Dependencies**: Removed unused packages (pandas, matplotlib, pytest) from requirements.txt
-- ✅ **Fixed Test Validation**: Resolved type comparison bugs in test_validation.py with proper normalization
-- ✅ **Input Validation**: Added comprehensive bounding box coordinate validation in `_validate_bbox()` method
-- ✅ **Configuration Validation**: Extracted validation logic into dedicated `_validate_config()` method
-- ✅ **Error Handling**: Standardized exception handling patterns with specific error types and verbose logging
+## Architecture & Technical Design
 
 ### **Current Architecture Strengths**
 - **Single Responsibility**: Each method has clear, focused purpose with dedicated validation
@@ -162,7 +151,7 @@ The system generates both JSON and CSV files with these fields:
 - **Pattern-Based**: Successful use of regex patterns for structured data extraction
 - **Robust Error Handling**: Specific exception types with contextual error messages and verbose debugging
 - **Comprehensive Validation**: Input validation for bounding boxes, configuration structure validation
-- **Testability**: 100% ground truth coverage enables regression protection (360 validation points)
+- **Testability**: Complete ground truth coverage enables regression protection
 
 ### **Key Architectural Components**
 1. **`_load_config()`**: File loading with JSON parsing and validation orchestration
@@ -171,19 +160,19 @@ The system generates both JSON and CSV files with these fields:
 4. **Error Handling**: Standardized patterns with specific exceptions (ValueError, IOError) and verbose logging
 5. **Parsing Methods**: Enhanced error handling with specific exception types and debugging context
 
-### **Remaining Technical Debt (Medium Priority)**
-- **Configuration Cleanup**: Remove unused fields from config.json (typical_range, note, ocr_settings sections)
-- **Shared Utilities**: Extract reusable validation/parsing utilities for better code organization
-- **Logging Framework**: Replace print statements with proper logging for production use
+### **Key Technical Insights**
+1. **EasyOCR superiority**: Neural OCR significantly outperforms Tesseract for this use case
+2. **Hardcoded coordinates**: More reliable than dynamic region detection for consistent app layouts
+3. **Pattern matching**: Essential for structured data like shot IDs and dates
+4. **Configuration externalization**: Enables easy tuning without code changes
+5. **Simple architecture**: ~300 lines total, 80% reduction from complex previous versions
+6. **Single extraction approach**: Yardage range generates 3 metrics automatically
+7. **Bounding box optimization**: Precise coordinates more reliable than dynamic region detection
+8. **Ground truth validation**: Complete test coverage enables confident code changes
 
-## System Status: Production Ready
-- ✅ **100% Accuracy** on all 9 metrics (360/360 validation points)
-- ✅ **40 images processed** successfully with full ground truth coverage
-- ✅ **Robust architecture** with comprehensive input validation and error handling
-- ✅ **Clean codebase** with minimal dependencies and standardized patterns
-- ✅ **Production-grade validation** with bounding box validation and configuration structure checks
-- ✅ **Complete documentation** and regression protection
-- ✅ **All high-priority code quality improvements** completed (validation, error handling, configuration extraction)
+## System Status
+
+The system is production-ready with a robust, maintainable architecture. Current implementation provides reliable OCR extraction with comprehensive validation and error handling. See PLAN.md for detailed accuracy metrics and completion status.
 
 ## Future Development Guidelines
 
@@ -194,7 +183,10 @@ The system generates both JSON and CSV files with these fields:
 4. **Ground Truth**: Update all test images in `config.json` with new metric values
 5. **Validation**: Ensure 100% accuracy maintained on existing metrics
 
-### **Maintenance Checklist**
+### **Technical Debt & Future Work**
+See PLAN.md for current technical debt items and development priorities.
+
+### **Maintenance Guidelines**
 - Run full regression test: `python main.py --input-dir photos --output-dir output`
 - Run validation test: `python test_validation.py` (verifies 100% accuracy against ground truth)
 - Verify 100% success rate and output accuracy on both tests
@@ -202,6 +194,13 @@ The system generates both JSON and CSV files with these fields:
 - Update ground truth data if new test images are added
 - Keep documentation current in both CLAUDE.md and PLAN.md
 - Use feature branches for all development work (never work directly in main)
+- Clean up feature branches after merging to main
+
+### **Technical Reference**
+- **Bounding box format**: `[x, y, width, height]` coordinates
+- **Configuration file**: All settings in `config.json` including bounding boxes, patterns, and ground truth
+- **Pattern matching**: Uses regex for structured data (shot IDs, dates, yardage ranges)
+- **Output formats**: JSON and CSV files with all extracted metrics
 
 ### **Troubleshooting Common Issues**
 - **Empty extractions**: Check bounding box coordinates and OCR confidence

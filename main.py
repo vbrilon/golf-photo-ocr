@@ -8,13 +8,19 @@ import argparse
 import cv2
 import easyocr
 import json
-import math
 import os
-import re
 import csv
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import glob
+
+from utils import (
+    validate_bbox, 
+    validate_config, 
+    convert_date_to_yyyymmdd, 
+    parse_yardage_range, 
+    extract_best_number
+)
 
 class GolfOCR:
     """Simple OCR extractor using EasyOCR with configurable bounding boxes"""
@@ -56,268 +62,13 @@ class GolfOCR:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
         
         # Validate the loaded configuration
-        self._validate_config(config)
+        validate_config(config)
         
         if self.verbose:
             print(f"Configuration validated successfully: {config_path}")
         
         return config
     
-    def _validate_config(self, config: dict) -> None:
-        """
-        Validate configuration structure and content
-        
-        Args:
-            config: Loaded configuration dictionary
-            
-        Raises:
-            ValueError: If configuration is invalid
-        """
-        # Validate required sections
-        if "metrics" not in config:
-            raise ValueError("Configuration file must contain 'metrics' section")
-        
-        metrics = config["metrics"]
-        if not isinstance(metrics, dict):
-            raise ValueError("Configuration 'metrics' section must be a dictionary")
-        
-        # Define required metrics for core functionality
-        required_metrics = ["DISTANCE_TO_PIN", "CARRY", "FROM_PIN", "STROKES_GAINED"]
-        
-        # Validate required metrics exist and have proper structure
-        for metric in required_metrics:
-            if metric not in metrics:
-                raise ValueError(f"Missing required metric in configuration: {metric}")
-            if not isinstance(metrics[metric], dict):
-                raise ValueError(f"Metric '{metric}' must be a dictionary")
-            if "bbox" not in metrics[metric]:
-                raise ValueError(f"Missing 'bbox' for metric: {metric}")
-            
-            # Validate bounding box coordinates
-            self._validate_bbox(metrics[metric]["bbox"], metric)
-        
-        # Validate all metrics (including optional ones) have valid bounding boxes
-        for metric_name, metric_config in metrics.items():
-            if not isinstance(metric_config, dict):
-                raise ValueError(f"Metric '{metric_name}' must be a dictionary")
-            if "bbox" in metric_config:
-                self._validate_bbox(metric_config["bbox"], metric_name)
-    
-    def _validate_bbox(self, bbox: List, metric_name: str) -> None:
-        """
-        Validate bounding box coordinates
-        
-        Args:
-            bbox: Bounding box in format [x, y, width, height]
-            metric_name: Name of the metric for error reporting
-            
-        Raises:
-            ValueError: If bounding box is invalid
-        """
-        # Check format
-        if not isinstance(bbox, list):
-            raise ValueError(f"Invalid bbox for {metric_name}: must be a list, got {type(bbox).__name__}")
-        
-        if len(bbox) != 4:
-            raise ValueError(f"Invalid bbox format for {metric_name}: must be [x, y, width, height], got {len(bbox)} elements")
-        
-        # Check all elements are numbers
-        for i, coord in enumerate(bbox):
-            if not isinstance(coord, (int, float)):
-                coord_names = ["x", "y", "width", "height"]
-                raise ValueError(f"Invalid bbox for {metric_name}: {coord_names[i]} must be a number, got {type(coord).__name__}")
-        
-        x, y, width, height = bbox
-        
-        # Check non-negative coordinates
-        if x < 0:
-            raise ValueError(f"Invalid bbox for {metric_name}: x coordinate cannot be negative, got {x}")
-        if y < 0:
-            raise ValueError(f"Invalid bbox for {metric_name}: y coordinate cannot be negative, got {y}")
-        
-        # Check positive dimensions
-        if width <= 0:
-            raise ValueError(f"Invalid bbox for {metric_name}: width must be positive, got {width}")
-        if height <= 0:
-            raise ValueError(f"Invalid bbox for {metric_name}: height must be positive, got {height}")
-        
-        # Check reasonable maximum values (golf app screenshots are typically ~2048x1536 or similar)
-        max_dimension = 10000  # Generous upper bound
-        if x > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: x coordinate too large ({x} > {max_dimension})")
-        if y > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: y coordinate too large ({y} > {max_dimension})")
-        if width > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: width too large ({width} > {max_dimension})")
-        if height > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: height too large ({height} > {max_dimension})")
-        
-        # Check that bounding box doesn't extend beyond reasonable image bounds
-        if x + width > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: bounding box extends beyond reasonable image width (x + width = {x + width} > {max_dimension})")
-        if y + height > max_dimension:
-            raise ValueError(f"Invalid bbox for {metric_name}: bounding box extends beyond reasonable image height (y + height = {y + height} > {max_dimension})")
-    
-    def convert_date_to_yyyymmdd(self, date_text: str) -> str:
-        """
-        Convert date text like 'JULY 1, 2025' to YYYYMMDD format like '20250701'
-        
-        Args:
-            date_text: Date string in format 'MONTH DAY, YEAR'
-            
-        Returns:
-            Date in YYYYMMDD format, or empty string if parsing fails
-        """
-        if not date_text:
-            return ""
-        
-        month_map = {
-            'JANUARY': '01', 'FEBRUARY': '02', 'MARCH': '03', 'APRIL': '04',
-            'MAY': '05', 'JUNE': '06', 'JULY': '07', 'AUGUST': '08',
-            'SEPTEMBER': '09', 'OCTOBER': '10', 'NOVEMBER': '11', 'DECEMBER': '12'
-        }
-        
-        try:
-            # Parse format like "JULY 1, 2025" or "JULY 1,2025"
-            match = re.match(r'([A-Z]+)\s+(\d{1,2}),\s*(\d{4})', date_text.upper())
-            if not match:
-                if self.verbose:
-                    print(f"    Date parsing: No match found for pattern in '{date_text}'")
-                return ""
-            
-            month_name, day, year = match.groups()
-            
-            if month_name not in month_map:
-                if self.verbose:
-                    print(f"    Date parsing: Unknown month '{month_name}' in '{date_text}'")
-                return ""
-            
-            month_num = month_map[month_name]
-            day_num = day.zfill(2)  # Zero-pad day to 2 digits
-            
-            return f"{year}{month_num}{day_num}"
-            
-        except (AttributeError, ValueError, IndexError) as e:
-            if self.verbose:
-                print(f"    Date parsing error for '{date_text}': {e}")
-            return ""
-        except Exception as e:
-            if self.verbose:
-                print(f"    Unexpected date parsing error for '{date_text}': {e}")
-            return ""
-    
-    def parse_yardage_range(self, range_text: str) -> Tuple[str, str, str]:
-        """
-        Parse yardage range text like '30-50' into components
-        
-        Args:
-            range_text: Range string like '30-50' or '30-50 yards'
-            
-        Returns:
-            Tuple of (yardage_range, yardage_from, yardage_to) or empty strings if parsing fails
-        """
-        if not range_text:
-            return "", "", ""
-        
-        try:
-            # Extract just the range portion (e.g., "30-50" from "30-50 yards")
-            range_match = re.search(r'(\d+-\d+)', range_text)
-            if not range_match:
-                if self.verbose:
-                    print(f"    Yardage range parsing: No range pattern found in '{range_text}'")
-                return "", "", ""
-            
-            range_part = range_match.group(1)
-            
-            # Split the range into from/to components
-            if '-' in range_part:
-                parts = range_part.split('-')
-                if len(parts) == 2:
-                    yardage_from = parts[0].strip()
-                    yardage_to = parts[1].strip()
-                    return range_part, yardage_from, yardage_to
-            
-            if self.verbose:
-                print(f"    Yardage range parsing: Could not split range '{range_part}'")
-            return "", "", ""
-            
-        except (AttributeError, ValueError, IndexError) as e:
-            if self.verbose:
-                print(f"    Yardage range parsing error for '{range_text}': {e}")
-            return "", "", ""
-        except Exception as e:
-            if self.verbose:
-                print(f"    Unexpected yardage range parsing error for '{range_text}': {e}")
-            return "", "", ""
-    
-    def extract_best_number(self, ocr_results: List, box_center: Tuple[float, float], 
-                           expect_decimal: bool = False, pattern: str = None) -> str:
-        """
-        Extract the best candidate from OCR results based on proximity to box center
-        
-        Args:
-            ocr_results: List of (bbox, text, confidence) from EasyOCR
-            box_center: Expected center of the bounding box
-            expect_decimal: Whether to prefer decimal values
-            pattern: Optional regex pattern to match (e.g., "#\\s*(\\d+)" for shot ID)
-            
-        Returns:
-            Best candidate string found, or empty string if none found
-        """
-        candidates = []
-        
-        for bbox, text, conf in ocr_results:
-            clean_text = text.strip()
-            
-            if self.verbose:
-                print(f"    Checking text: '{clean_text}'")
-            
-            # Use custom pattern if provided, otherwise use default numeric pattern
-            if pattern:
-                match = re.search(pattern, clean_text)
-                if not match:
-                    continue
-                extracted_value = match.group(1)  # Extract from capture group
-            else:
-                # Skip if no digits found
-                if not re.search(r'\d', clean_text):
-                    continue
-                
-                # Extract number with optional sign
-                match = re.search(r'[+-]?\d+\.?\d*', clean_text)
-                if not match:
-                    continue
-                
-                extracted_value = match.group(0)
-                
-                # Handle explicit + sign in original text
-                if '+' in clean_text and not extracted_value.startswith('+'):
-                    extracted_value = '+' + extracted_value.lstrip('+-')
-            
-            # Calculate distance from expected center (for pattern matches, distance is less important)
-            x_coords = [p[0] for p in bbox]
-            y_coords = [p[1] for p in bbox]
-            text_center = (sum(x_coords) / 4, sum(y_coords) / 4)
-            
-            distance = math.hypot(text_center[0] - box_center[0], text_center[1] - box_center[1])
-            
-            # Apply decimal preference bonus (only for numeric extraction)
-            decimal_bonus = -10.0 if not pattern and expect_decimal and '.' in extracted_value else 0.0
-            
-            # For pattern matches, prioritize by confidence rather than distance
-            score = distance + decimal_bonus if not pattern else -conf * 100
-            
-            candidates.append((score, extracted_value, conf))
-            
-            if self.verbose:
-                print(f"    Candidate: '{extracted_value}' (score: {score:.1f}, conf: {conf:.2f})")
-        
-        if not candidates:
-            return ""
-        
-        # Sort by score (lower is better) and return best candidate
-        candidates.sort(key=lambda x: x[0])
-        return candidates[0][1]
     
     def extract_from_image(self, image_path: str) -> Dict[str, str]:
         """
@@ -358,11 +109,11 @@ class GolfOCR:
             expect_decimal = label in self.decimal_metrics
             pattern = self.pattern_metrics.get(label)  # None if no pattern defined
             
-            value = self.extract_best_number(ocr_results, box_center, expect_decimal, pattern)
+            value = extract_best_number(ocr_results, box_center, expect_decimal, pattern, self.verbose)
             
             # Special handling for DATE metric - convert to YYYYMMDD format
             if label == "DATE" and value:
-                value = self.convert_date_to_yyyymmdd(value)
+                value = convert_date_to_yyyymmdd(value, self.verbose)
                 if self.verbose:
                     print(f"    Converted date to: '{value}'")
             
@@ -390,7 +141,7 @@ class GolfOCR:
         # Special handling for yardage range - parse into 3 separate metrics
         if "YARDAGE_RANGE" in results:
             yardage_range_text = results["YARDAGE_RANGE"]
-            yardage_range, yardage_from, yardage_to = self.parse_yardage_range(yardage_range_text)
+            yardage_range, yardage_from, yardage_to = parse_yardage_range(yardage_range_text, self.verbose)
             
             mapped_results["yardage_range"] = yardage_range
             mapped_results["yardage_from"] = yardage_from
