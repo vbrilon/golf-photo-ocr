@@ -14,33 +14,27 @@
       "description": "Shot list ID number following # symbol",
       "bbox": [60, 175, 84, 81],
       "expect_decimal": false,
-      "typical_range": [1, 999],
       "pattern": "#\\s*(\\d+)"
     },
     "DISTANCE_TO_PIN": {
       "description": "Distance to pin in yards",
       "bbox": [184, 396, 175, 148],
-      "expect_decimal": false,
-      "typical_range": [10, 100]
+      "expect_decimal": false
     },
     "CARRY": {
       "description": "Carry distance in yards",
       "bbox": [147, 705, 252, 145],
-      "expect_decimal": true,
-      "typical_range": [10, 100]
+      "expect_decimal": true
     },
     "FROM_PIN": {
       "description": "Distance from pin after shot in yards",
       "bbox": [188, 982, 170, 136],
-      "expect_decimal": false,
-      "typical_range": [0, 60]
+      "expect_decimal": false
     },
     "STROKES_GAINED": {
       "description": "Strokes gained/lost metric",
       "bbox": [94, 1249, 323, 149],
-      "expect_decimal": true,
-      "typical_range": [-2.0, 2.0],
-      "note": "Expanded bbox to capture negative signs"
+      "expect_decimal": true
     },
     "YARDAGE_RANGE": {
       "description": "Yardage range for strokes gained analysis (e.g., 30-50 yards)",
@@ -48,13 +42,6 @@
       "expect_decimal": false,
       "pattern": "(\\d+-\\d+)\\s*(?:yards?|yds?)?"
     }
-  },
-  
-  "ocr_settings": {
-    "engine": "easyocr",
-    "language": "en",
-    "gpu": false,
-    "confidence_threshold": 0.5
   },
   
   "processing": {
