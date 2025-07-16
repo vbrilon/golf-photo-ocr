@@ -28,16 +28,21 @@ The system processes images from the `photos/` directory and extracts these valu
 
 ```
 /
-├── main.py                 # Main CLI application (EasyOCR-based system)
+├── main.py                 # Main CLI application (285 lines, orchestration)
 ├── config.json             # Configuration with bounding boxes and ground truth
+├── utils/                  # Modular utility functions (2025-07-16)
+│   ├── __init__.py         # Public API exports
+│   ├── validation.py       # Config and bounding box validation
+│   ├── parsing.py          # Date and yardage range parsing
+│   └── ocr_processing.py   # OCR result extraction and scoring
+├── test_validation.py      # Ground truth validation (100% accuracy)
 ├── photos/                 # Input images (40 golf app screenshots)
-├── test_validation.py      # Validation test with ground truth comparison
 ├── output/                 # Results (JSON and CSV files)
 ├── docs/
-│   └── PLAN.md            # Project plan and next steps
+│   ├── PLAN.md            # Development priorities and todos
+│   └── ANALYSIS.md        # Codebase analysis and recommendations
 ├── requirements.txt        # Python dependencies
-├── .gitignore             # Git ignore file
-└── pyvenv.cfg             # Virtual environment config
+└── .gitignore             # Git ignore patterns (Python project)
 ```
 
 ## Current Architecture: Simple & Effective
@@ -115,10 +120,10 @@ The system generates both JSON and CSV files with these fields:
 
 ### **Ground Truth System**
 - Complete test coverage with ground truth data in `config.json`
-- Comprehensive validation framework via `test_validation.py`
+- Validation framework via `test_validation.py` - run with `python test_validation.py`
+- 100% accuracy on 40 images (360 data points)
 - Type-safe validation with proper normalization
 - Regression protection for code changes
-- See PLAN.md for current accuracy metrics and test results
 
 
 ## Development Workflow
@@ -153,26 +158,43 @@ The system generates both JSON and CSV files with these fields:
 - **Comprehensive Validation**: Input validation for bounding boxes, configuration structure validation
 - **Testability**: Complete ground truth coverage enables regression protection
 
-### **Key Architectural Components**
-1. **`_load_config()`**: File loading with JSON parsing and validation orchestration
-2. **`_validate_config()`**: Dedicated configuration structure and content validation
-3. **`_validate_bbox()`**: Comprehensive bounding box coordinate validation with bounds checking
-4. **Error Handling**: Standardized patterns with specific exceptions (ValueError, IOError) and verbose logging
-5. **Parsing Methods**: Enhanced error handling with specific exception types and debugging context
+### **Modular Architecture (Updated 2025-07-16)**
+
+**Main Application (`main.py` - 285 lines):**
+- `GolfOCR` class focuses on orchestration and image processing workflow
+- Configuration loading with validation delegation to utilities
+- EasyOCR integration and bounding box extraction
+- Output mapping and file operations
+
+**Utility Modules (`utils/` package):**
+- `validation.py`: Configuration structure and bounding box coordinate validation
+- `parsing.py`: Date conversion and yardage range parsing with error handling
+- `ocr_processing.py`: OCR result scoring algorithm and candidate selection
+- `__init__.py`: Clean public API with explicit exports
+
+**Benefits:**
+- 47% code reduction in main application (535 → 285 lines)
+- Single responsibility principle - each module has focused purpose
+- Enhanced testability - utility functions can be tested independently
+- Improved reusability - utilities available for future components
 
 ### **Key Technical Insights**
 1. **EasyOCR superiority**: Neural OCR significantly outperforms Tesseract for this use case
 2. **Hardcoded coordinates**: More reliable than dynamic region detection for consistent app layouts
 3. **Pattern matching**: Essential for structured data like shot IDs and dates
 4. **Configuration externalization**: Enables easy tuning without code changes
-5. **Simple architecture**: ~300 lines total, 80% reduction from complex previous versions
+5. **Modular architecture**: Utility functions extracted for better organization and testability
 6. **Single extraction approach**: Yardage range generates 3 metrics automatically
-7. **Bounding box optimization**: Precise coordinates more reliable than dynamic region detection
+7. **Robust validation**: Comprehensive input validation with specific error messages
 8. **Ground truth validation**: Complete test coverage enables confident code changes
 
 ## System Status
 
-The system is production-ready with a robust, maintainable architecture. Current implementation provides reliable OCR extraction with comprehensive validation and error handling. See PLAN.md for detailed accuracy metrics and completion status.
+**Production Ready**: 100% accuracy on all 9 metrics (360/360 test points)
+**Architecture**: Modular design with extracted utility functions for improved maintainability
+**Code Quality**: Comprehensive validation, error handling, and regression protection
+
+See `docs/PLAN.md` for development priorities and todos.
 
 ## Future Development Guidelines
 
@@ -183,8 +205,6 @@ The system is production-ready with a robust, maintainable architecture. Current
 4. **Ground Truth**: Update all test images in `config.json` with new metric values
 5. **Validation**: Ensure 100% accuracy maintained on existing metrics
 
-### **Technical Debt & Future Work**
-See PLAN.md for current technical debt items and development priorities.
 
 ### **Maintenance Guidelines**
 - Run full regression test: `python main.py --input-dir photos --output-dir output`
