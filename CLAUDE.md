@@ -35,6 +35,13 @@ The system processes images from the `photos/` directory and extracts these valu
 │   ├── validation.py       # Config and bounding box validation
 │   ├── parsing.py          # Date and yardage range parsing
 │   └── ocr_processing.py   # OCR result extraction and scoring
+├── tests/                  # Comprehensive unit test suite (58 tests)
+│   ├── __init__.py         # Test package
+│   ├── test_parsing.py     # Date & yardage parsing tests (15 tests)
+│   ├── test_ocr_processing.py # OCR scoring algorithm tests (18 tests)
+│   ├── test_validation.py  # Config & bbox validation tests (17 tests)
+│   ├── test_golf_ocr.py    # Integration tests with mocks (8 tests)
+│   └── README.md           # Test suite documentation
 ├── test_validation.py      # Ground truth validation (100% accuracy)
 ├── photos/                 # Input images (40 golf app screenshots)
 ├── output/                 # Results (JSON and CSV files)
