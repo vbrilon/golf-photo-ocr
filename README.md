@@ -86,17 +86,45 @@ Example output:
 
 ## Testing
 
-Validate the system accuracy:
+The project includes comprehensive testing at multiple levels:
 
+### Unit Tests (97 tests)
+Run the complete unit test suite:
 ```bash
-# Test single image
+# Run all unit tests
+python -m pytest tests/ -v
+
+# Run specific test modules
+python -m pytest tests/test_parsing.py -v        # Date & yardage parsing (31 tests)
+python -m pytest tests/test_ocr_processing.py -v # OCR scoring algorithms (30 tests)
+python -m pytest tests/test_validation.py -v     # Config validation (17 tests)
+python -m pytest tests/test_golf_ocr.py -v       # Integration tests (19 tests)
+```
+
+### Ground Truth Validation (100% accuracy)
+Test against known correct values from 40 images:
+```bash
+# Full ground truth validation (all 40 images)
+python tests/test_ground_truth.py
+
+# Quick validation (single image)
+python tests/test_ground_truth.py --quick
+```
+
+### Integration Testing
+Test the complete system workflow:
+```bash
+# Test single image with detailed output
 python main.py --single-image photos/2025-07-12_1105_shot1.png --verbose
 
 # Process all test images 
 python main.py --input-dir photos --output-dir output
-
-# Ground truth validation data available in config.json
 ```
+
+### Test Data
+- **40 test images** with known correct values stored in `config.json`
+- **360 validation points** (9 metrics × 40 images)
+- **Ground truth data** manually verified for 100% accuracy baseline
 
 ## Architecture
 

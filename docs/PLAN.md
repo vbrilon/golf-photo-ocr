@@ -1,75 +1,59 @@
-# Golf Photo OCR - Implementation Plan & Status
+# Golf Photo OCR - Development Plan & Status
 
-## Overview
-This document tracks the implementation status of metrics extraction from golf app screenshots.
+## Current Status
 
-## ✅ PROJECT COMPLETE - All 9 Metrics Implemented
+**✅ PROJECT COMPLETE**: All 9 metrics implemented with 100% accuracy (360/360 test points)
 
-**System Status**: Production ready with 100% accuracy (360/360 test points)
-**Architecture**: Modular design with extracted utility functions
-**Test Coverage**: Comprehensive 97-test suite with extensive edge case coverage
-**Quality**: Robust validation, error handling, and regression protection
-
-## ✅ Completed Work Summary
-
-### Core Implementation (100% Complete)
-- All 9 target metrics implemented with 100% accuracy (360/360 test points)
-- EasyOCR-based extraction with optimized bounding boxes
-- Pattern matching for structured data (dates, shot IDs, yardage ranges)
-- Comprehensive ground truth validation system
-
-### Code Quality Improvements (2025-07-16)
-- ✅ **Extract shared utility functions** - Created modular `utils/` package, reduced main.py from 535 to 285 lines (-47%)
-- ✅ **Input validation** - Comprehensive bounding box coordinate validation
-- ✅ **Error handling** - Standardized exception patterns with specific error types
-- ✅ **Configuration cleanup** - Removed unused fields from config.json
-- ✅ **Dependencies cleanup** - Removed unused packages (pandas, matplotlib, pytest)
-- ✅ **Dead code removal** - Deleted unused files and debug artifacts
-- ✅ **Test validation fixes** - Resolved type comparison bugs
-
-### Comprehensive Testing Implementation (2025-07-18)
-- ✅ **Test Parsing Functions** - Enhanced from 15 to 31 tests with comprehensive edge case coverage
-- ✅ **Test OCR Processing** - Enhanced from 18 to 30 tests with algorithm robustness testing
-- ✅ **Test GolfOCR Integration** - Enhanced from 8 to 19 tests with end-to-end workflow coverage
-- ✅ **Total Test Coverage** - 97 comprehensive unit tests across all critical functions
-- ✅ **Ground Truth Validation** - 100% accuracy maintained throughout all enhancements
+### Recently Completed (2025-07-18)
+- ✅ **File Organization** - Moved `test_validation.py` to `tests/test_ground_truth.py` for better organization
+- ✅ **Import Cleanup** - Removed unused `validate_bbox` import from main.py
+- ✅ **Documentation Update** - Updated CLAUDE.md and README.md with current architecture and test instructions
+- ✅ **Test Integration** - Fixed paths for ground truth validation in new location
 
 ## Future Development Priorities
 
-### Medium Priority - Architecture (Next Phase)
-With comprehensive testing now complete, these architectural improvements provide the next highest value:
+### Optional Architecture Improvements
+The system is production-ready. These improvements are optional:
 
-1. **[ ] Separate CLI Logic** - MEDIUM VALUE
+1. **[ ] Separate CLI Logic** - LOW PRIORITY
    - Move CLI logic from main.py to separate cli.py module
-   - Improves separation of concerns, though main.py is already clean at 285 lines
-   - Can wait until CLI becomes more complex
+   - Only needed if CLI becomes more complex
 
-2. **[ ] Create `utils/files.py`** - MEDIUM VALUE
+2. **[ ] Create `utils/files.py`** - LOW PRIORITY
    - Extract file operation utilities (finding images, saving results)
-   - Good for organization if we add more file handling features
-   - Currently file operations are simple and contained
+   - Only needed if file operations become more complex
 
-### Low Priority - Advanced Features
-- [ ] **Consider dependency injection** - Inject OCR reader for improved testability and modularity
-- [ ] **Add logging framework** - Replace print statements with proper logging (logging/structlog) for production use
-- [ ] **Performance optimization** - Profile OCR operations and optimize batch processing for large image sets
+3. **[ ] Add logging framework** - LOW PRIORITY
+   - Replace print statements with proper logging
+   - Only needed for production deployment
 
-### Not Recommended (Low ROI)
-- **Separate Ground Truth Data** - Current approach works fine for 40 images
-- **Test CLI** - Simple argument parsing, low complexity
+### Not Recommended
+- **Dependency injection** - Current design is simple and effective
+- **Separate ground truth data** - Current approach works fine for 40 images
+- **Performance optimization** - System is already fast enough for current use case
 
 ## Quick Commands
 
 ```bash
-# Run comprehensive unit test suite (97 tests)
+# Run all tests (97 unit tests)
 python -m pytest tests/ -v
 
-# Run ground truth validation (should show 100% success)
-python test_validation.py
+# Run ground truth validation (360 data points)
+python tests/test_ground_truth.py
 
 # Process all images
 python main.py
 
-# Process single image with verbose output
+# Process single image with debug output
 python main.py --single-image photos/sample.png --verbose
 ```
+
+## Project Architecture
+
+- **main.py**: Core application (285 lines)
+- **utils/**: Modular utility functions (validation, parsing, OCR processing)
+- **tests/**: Comprehensive test suite (97 tests + ground truth validation)
+- **config.json**: Configuration with bounding boxes and ground truth data
+- **photos/**: 40 test images
+
+**Key Achievement**: 100% accuracy on all 9 metrics across 40 test images

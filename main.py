@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Tuple
 import glob
 
 from utils import (
-    validate_bbox, 
     validate_config, 
     convert_date_to_yyyymmdd, 
     parse_yardage_range, 

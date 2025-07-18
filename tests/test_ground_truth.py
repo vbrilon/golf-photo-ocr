@@ -6,13 +6,19 @@ Tests the system against ground truth data stored in config.json
 
 import json
 import os
+import sys
+
+# Add parent directory to path to import main
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from main import GolfOCR
 
 def test_ground_truth():
     """Test all ground truth images for accuracy"""
     
     # Load ground truth data from config
-    with open('config.json', 'r') as f:
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+    with open(config_path, 'r') as f:
         config = json.load(f)
     
     ground_truth = config['ground_truth']['test_images']
@@ -31,7 +37,7 @@ def test_ground_truth():
     total = 0
     
     for filename, expected_dict in ground_truth.items():
-        image_path = f"photos/{filename}"
+        image_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'photos', filename)
         
         if not os.path.exists(image_path):
             print(f"⚠️  {filename}: Image not found, skipping")
@@ -144,7 +150,7 @@ def quick_test():
     """Quick test with a single image"""
     print("=== Quick Validation Test ===")
     
-    test_image = "photos/2025-07-01_1941_shot1.png"
+    test_image = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'photos', '2025-07-01_1941_shot1.png')
     expected = {"shot_id": 14, "distance_to_pin": 36, "carry": 35.5, "from_pin": 2, "sg_individual": 0.54}
     
     if not os.path.exists(test_image):
