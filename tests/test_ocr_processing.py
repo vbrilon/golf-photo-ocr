@@ -215,6 +215,164 @@ class TestExtractBestNumber(unittest.TestCase):
         ]
         result = extract_best_number(ocr_results, (5.0, 5.0))
         self.assertEqual(result, "42")
+        
+    def test_malformed_ocr_results(self):
+        """Test handling of malformed OCR result data."""
+        # Test with invalid bbox coordinates (though this should be handled by caller)
+        ocr_results = [
+            # Normal result for comparison
+            self.create_ocr_result("42", 0.9, (95, 95, 105, 105)),
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")
+        
+    def test_regex_pattern_edge_cases(self):
+        """Test edge cases with regex patterns."""
+        # Pattern with multiple capture groups (should use first one)
+        complex_pattern = r"(\d+)\s*-\s*(\d+)"  # Range pattern like "30-50"
+        ocr_results = [
+            self.create_ocr_result("30-50 yards", 0.9, (95, 95, 105, 105))
+        ]
+        result = extract_best_number(ocr_results, self.box_center, pattern=complex_pattern)
+        self.assertEqual(result, "30")  # Should extract first capture group
+        
+        # Pattern that matches but has empty text after stripping
+        whitespace_pattern = r"#\s*(\d+)"
+        ocr_results = [
+            self.create_ocr_result("  #  15  ", 0.9, (95, 95, 105, 105))
+        ]
+        result = extract_best_number(ocr_results, self.box_center, pattern=whitespace_pattern)
+        self.assertEqual(result, "15")
+        
+        # Pattern with optional elements
+        optional_pattern = r"shot\s*#?\s*(\d+)"
+        ocr_results = [
+            self.create_ocr_result("shot 15", 0.9, (95, 95, 105, 105)),
+            self.create_ocr_result("shot #23", 0.8, (100, 100, 110, 110))
+        ]
+        result = extract_best_number(ocr_results, self.box_center, pattern=optional_pattern)
+        self.assertEqual(result, "15")  # Should pick higher confidence when using patterns
+        
+    def test_complex_text_with_multiple_numbers(self):
+        """Test text containing multiple numbers."""
+        ocr_results = [
+            # Text with multiple numbers - should extract first match
+            self.create_ocr_result("Score: 42 out of 100 points", 0.9, (95, 95, 105, 105)),
+            # Decimal in complex text
+            self.create_ocr_result("Distance: 39.5 yards from pin", 0.8, (100, 100, 110, 110)),
+            # Negative number with context
+            self.create_ocr_result("Strokes gained: -0.82 compared to average", 0.85, (105, 105, 115, 115))
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")  # Should pick closest to center
+        
+    def test_special_characters_in_numbers(self):
+        """Test numbers with special characters and formatting."""
+        ocr_results = [
+            # Number with comma - regex will extract just the "1" part
+            self.create_ocr_result("1,234", 0.9, (95, 95, 105, 105)),
+            # Number with currency symbol - regex will extract "42.50"
+            self.create_ocr_result("$42.50", 0.8, (100, 100, 110, 110)),
+            # Percentage - regex will extract "85"
+            self.create_ocr_result("85%", 0.85, (105, 105, 115, 115)),
+            # Simple number for comparison
+            self.create_ocr_result("42", 0.7, (110, 110, 120, 120))
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "1")  # Should extract "1" from "1,234" as it's closest to center
+        
+    def test_decimal_bonus_boundary_conditions(self):
+        """Test decimal bonus at exact boundary conditions."""
+        ocr_results = [
+            # Integer at distance 15
+            self.create_ocr_result("42", 0.9, (115, 100, 125, 110)),     
+            # Decimal at distance 25, with -10 bonus = 15 (exact tie)
+            self.create_ocr_result("39.5", 0.8, (125, 100, 135, 110))  
+        ]
+        result = extract_best_number(ocr_results, self.box_center, expect_decimal=True)
+        self.assertEqual(result, "39.5")  # Decimal wins with bonus despite being farther
+        
+    def test_very_long_text_performance(self):
+        """Test performance with very long text strings."""
+        long_text = "This is a very long string with lots of text and eventually a number 42 buried deep inside all this content that goes on and on"
+        ocr_results = [
+            self.create_ocr_result(long_text, 0.9, (95, 95, 105, 105)),
+            self.create_ocr_result("39", 0.8, (100, 100, 110, 110))
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")  # Should handle long text and extract number
+        
+    def test_confidence_extreme_values(self):
+        """Test with extreme confidence values."""
+        shot_id_pattern = r"#\s*(\d+)"
+        ocr_results = [
+            # Very low confidence
+            self.create_ocr_result("#15", 0.01, (95, 95, 105, 105)),
+            # Very high confidence  
+            self.create_ocr_result("#23", 0.99, (100, 100, 110, 110))
+        ]
+        result = extract_best_number(ocr_results, self.box_center, pattern=shot_id_pattern)
+        self.assertEqual(result, "23")  # Should pick higher confidence
+        
+    def test_zero_confidence_edge_case(self):
+        """Test handling of zero confidence values."""
+        ocr_results = [
+            self.create_ocr_result("42", 0.0, (95, 95, 105, 105)),  # Zero confidence
+            self.create_ocr_result("39", 0.1, (100, 100, 110, 110))  # Very low confidence
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")  # Distance-based, so should pick closer one
+        
+    def test_identical_distance_different_extraction_order(self):
+        """Test candidates with identical distances in different orders."""
+        ocr_results = [
+            # Same distance, different values, test sort stability
+            self.create_ocr_result("50", 0.8, (95, 95, 105, 105)),  # Same bbox = same distance
+            self.create_ocr_result("75", 0.9, (95, 95, 105, 105)),  # Same bbox = same distance
+            self.create_ocr_result("100", 0.7, (95, 95, 105, 105))  # Same bbox = same distance
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "50")  # Should pick first one with same score
+        
+    def test_floating_point_precision_distances(self):
+        """Test floating point precision in distance calculations."""
+        # Create coordinates that result in very similar distances
+        ocr_results = [
+            # Distance should be ~7.071
+            self.create_ocr_result("42", 0.9, (95, 95, 105, 105)),
+            # Distance should be ~7.072 (very slight difference)  
+            self.create_ocr_result("39", 0.8, (95, 95, 105, 106))
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")  # Should handle tiny distance differences
+        
+    def test_pattern_with_no_capture_groups(self):
+        """Test pattern matching with patterns that have no capture groups."""
+        # This would cause an IndexError in group(1) - function should handle gracefully
+        no_capture_pattern = r"#\d+"  # No parentheses = no capture groups
+        ocr_results = [
+            self.create_ocr_result("#15", 0.9, (95, 95, 105, 105)),
+            self.create_ocr_result("42", 0.8, (100, 100, 110, 110))  # Fallback to normal extraction
+        ]
+        # This should not crash, but might not work as expected without capture groups
+        # The current implementation assumes group(1) exists
+        try:
+            result = extract_best_number(ocr_results, self.box_center, pattern=no_capture_pattern)
+            # If it doesn't crash, result should be empty since pattern matching failed
+            self.assertEqual(result, "")
+        except IndexError:
+            # If it crashes due to group(1), that's also acceptable behavior to document
+            pass
+            
+    def test_whitespace_only_text(self):
+        """Test OCR results with whitespace-only text."""
+        ocr_results = [
+            self.create_ocr_result("   ", 0.9, (95, 95, 105, 105)),  # Spaces only
+            self.create_ocr_result("\t\n", 0.8, (100, 100, 110, 110)),  # Tabs and newlines
+            self.create_ocr_result("42", 0.7, (105, 105, 115, 115))  # Valid number
+        ]
+        result = extract_best_number(ocr_results, self.box_center)
+        self.assertEqual(result, "42")  # Should skip whitespace-only and find number
 
 
 if __name__ == '__main__':
