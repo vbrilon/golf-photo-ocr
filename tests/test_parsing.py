@@ -100,6 +100,46 @@ class TestDateConversion(unittest.TestCase):
         
         # Invalid date should still return empty string with verbose
         self.assertEqual(convert_date_to_yyyymmdd("invalid", verbose=True), "")
+    
+    def test_boundary_days(self):
+        """Test boundary day values (1st and last day of months)."""
+        # First day of month
+        self.assertEqual(convert_date_to_yyyymmdd("JANUARY 1, 2025"), "20250101")
+        # Last day of months with different day counts
+        self.assertEqual(convert_date_to_yyyymmdd("JANUARY 31, 2025"), "20250131")
+        self.assertEqual(convert_date_to_yyyymmdd("FEBRUARY 28, 2025"), "20250228")
+        self.assertEqual(convert_date_to_yyyymmdd("APRIL 30, 2025"), "20250430")
+        
+    def test_leap_year_dates(self):
+        """Test leap year date handling."""
+        # Leap year February 29th
+        self.assertEqual(convert_date_to_yyyymmdd("FEBRUARY 29, 2024"), "20240229")
+        # Non-leap year February 29th (function doesn't validate, just formats)
+        self.assertEqual(convert_date_to_yyyymmdd("FEBRUARY 29, 2025"), "20250229")
+        
+    def test_numeric_strings(self):
+        """Test pure numeric strings that might be mistaken for dates."""
+        self.assertEqual(convert_date_to_yyyymmdd("123456"), "")
+        self.assertEqual(convert_date_to_yyyymmdd("20250701"), "")
+        
+    def test_special_characters(self):
+        """Test input with special characters."""
+        # These actually match because the regex doesn't require end-of-string
+        self.assertEqual(convert_date_to_yyyymmdd("JULY 1, 2025!"), "20250701")
+        self.assertEqual(convert_date_to_yyyymmdd("JULY 1, 2025."), "20250701")
+        self.assertEqual(convert_date_to_yyyymmdd("JULY 1st, 2025"), "")  # Ordinal numbers prevent match
+        
+    def test_extra_long_text(self):
+        """Test very long strings with dates embedded."""
+        long_text = "This is a very long string with JULY 1, 2025 embedded somewhere in the middle"
+        self.assertEqual(convert_date_to_yyyymmdd(long_text), "")  # Should not match due to regex
+        
+    def test_partial_dates(self):
+        """Test incomplete date information."""
+        self.assertEqual(convert_date_to_yyyymmdd("JULY"), "")
+        self.assertEqual(convert_date_to_yyyymmdd("JULY 1"), "")
+        self.assertEqual(convert_date_to_yyyymmdd("1, 2025"), "")
+        self.assertEqual(convert_date_to_yyyymmdd(", 2025"), "")
 
 
 class TestYardageRangeParsing(unittest.TestCase):
@@ -222,6 +262,114 @@ class TestYardageRangeParsing(unittest.TestCase):
         
         # Invalid range should still return empty strings with verbose
         result = parse_yardage_range("invalid", verbose=True)
+        self.assertEqual(result, ("", "", ""))
+        
+    def test_boundary_values(self):
+        """Test boundary numeric values."""
+        # Very small ranges
+        result = parse_yardage_range("1-2")
+        self.assertEqual(result, ("1-2", "1", "2"))
+        
+        # Large ranges
+        result = parse_yardage_range("999-1000")
+        self.assertEqual(result, ("999-1000", "999", "1000"))
+        
+        # Zero values (though unusual in golf)
+        result = parse_yardage_range("0-10")
+        self.assertEqual(result, ("0-10", "0", "10"))
+        
+    def test_unusual_spacing(self):
+        """Test unusual spacing patterns."""
+        # Tab characters
+        result = parse_yardage_range("30-50\tyards")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        # Multiple spaces between range and unit
+        result = parse_yardage_range("30-50    yards")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        # Leading/trailing spaces
+        result = parse_yardage_range("   30-50   ")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+    def test_reversed_ranges(self):
+        """Test ranges where to-value is smaller than from-value."""
+        # Technically invalid but function should still parse the pattern
+        result = parse_yardage_range("50-30")
+        self.assertEqual(result, ("50-30", "50", "30"))
+        
+    def test_same_from_to_values(self):
+        """Test ranges where from and to values are the same."""
+        result = parse_yardage_range("50-50")
+        self.assertEqual(result, ("50-50", "50", "50"))
+        
+    def test_decimal_ranges(self):
+        """Test ranges with decimal values (though unusual in yardage)."""
+        # Function looks for \d+-\d+ pattern, so it matches the digits after decimal
+        result = parse_yardage_range("30.5-50.7")
+        self.assertEqual(result, ("5-50", "5", "50"))  # Matches "5-50" from the decimal portions
+        
+    def test_ranges_with_punctuation(self):
+        """Test ranges with surrounding punctuation."""
+        result = parse_yardage_range("Range: 30-50 yards.")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        result = parse_yardage_range("(30-50 yards)")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        result = parse_yardage_range("[30-50]")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+    def test_alternative_units(self):
+        """Test with alternative or misspelled units."""
+        # Misspelled units
+        result = parse_yardage_range("30-50 yeards")  # Misspelled
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        result = parse_yardage_range("30-50 yrds")  # Alternative abbreviation
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        # Other distance units (should still extract range)
+        result = parse_yardage_range("30-50 meters")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+    def test_complex_text_scenarios(self):
+        """Test complex real-world text scenarios."""
+        result = parse_yardage_range("Shot distance 30-50 yards from pin")
+        self.assertEqual(result, ("30-50", "30", "50"))
+        
+        result = parse_yardage_range("Approach shot in the 75-100 yard range")
+        self.assertEqual(result, ("75-100", "75", "100"))
+        
+        result = parse_yardage_range("Between 50-75 yds to target")
+        self.assertEqual(result, ("50-75", "50", "75"))
+        
+    def test_numeric_only_input(self):
+        """Test purely numeric inputs without dash."""
+        result = parse_yardage_range("50")
+        self.assertEqual(result, ("", "", ""))
+        
+        result = parse_yardage_range("123456")
+        self.assertEqual(result, ("", "", ""))
+        
+    def test_malformed_ranges(self):
+        """Test additional malformed range patterns."""
+        # Multiple dashes
+        result = parse_yardage_range("30--50")
+        self.assertEqual(result, ("", "", ""))
+        
+        result = parse_yardage_range("30-50-75")  # Triple range
+        self.assertEqual(result, ("30-50", "30", "50"))  # Should match first valid pattern
+        
+        # Letters mixed with numbers
+        result = parse_yardage_range("30a-50b")
+        self.assertEqual(result, ("", "", ""))
+        
+        # Empty range components
+        result = parse_yardage_range("-")
+        self.assertEqual(result, ("", "", ""))
+        
+        result = parse_yardage_range("a-b")
         self.assertEqual(result, ("", "", ""))
 
 
