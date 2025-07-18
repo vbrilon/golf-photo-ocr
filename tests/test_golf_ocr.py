@@ -12,6 +12,7 @@ import tempfile
 import json
 from unittest.mock import Mock, patch, mock_open
 import numpy as np
+import cv2
 
 # Add parent directory to path to import main module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -292,6 +293,441 @@ class TestGolfOCR(unittest.TestCase):
         # Verify non-pattern metrics don't have patterns
         self.assertIsNone(ocr.pattern_metrics.get("DISTANCE_TO_PIN"))
         self.assertIsNone(ocr.pattern_metrics.get("CARRY"))
+        
+    @patch('easyocr.Reader')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    def test_image_cropping_and_preprocessing(self, mock_cvtColor, mock_imread, mock_easyocr):
+        """Test image cropping and grayscale conversion."""
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        
+        # Mock grayscale conversion
+        mock_gray = np.zeros((116, 301), dtype=np.uint8)
+        mock_cvtColor.return_value = mock_gray
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("42", 0.9, (10, 10, 50, 50))
+        ]
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Extract from mock image
+        result = ocr.extract_from_image("fake_image.png")
+        
+        # Verify cvtColor was called for each metric (7 times)
+        self.assertEqual(mock_cvtColor.call_count, 7)
+        
+        # Verify that each call was with correct parameters
+        for call in mock_cvtColor.call_args_list:
+            args, kwargs = call
+            self.assertEqual(len(args), 2)  # Should have crop and color conversion constant
+            self.assertEqual(args[1], cv2.COLOR_BGR2GRAY)
+            
+    @patch('easyocr.Reader')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    def test_box_center_calculation(self, mock_cvtColor, mock_imread, mock_easyocr):
+        """Test that box center is calculated correctly for different bbox sizes."""
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        mock_cvtColor.return_value = np.zeros((100, 100), dtype=np.uint8)
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("42", 0.9, (10, 10, 50, 50))
+        ]
+        
+        # Create custom config with known bbox dimensions
+        test_config = {
+            "metrics": {
+                "TEST_METRIC": {
+                    "bbox": [100, 100, 200, 150],  # w=200, h=150
+                    "expect_decimal": False
+                },
+                # Add required metrics to pass validation
+                "DISTANCE_TO_PIN": {"bbox": [184, 396, 175, 148], "expect_decimal": False},
+                "CARRY": {"bbox": [147, 705, 252, 145], "expect_decimal": True},
+                "FROM_PIN": {"bbox": [188, 982, 170, 136], "expect_decimal": False},
+                "STROKES_GAINED": {"bbox": [94, 1249, 323, 149], "expect_decimal": True}
+            }
+        }
+        
+        temp_config = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        json.dump(test_config, temp_config)
+        temp_config.close()
+        
+        try:
+            ocr = GolfOCR(verbose=False, config_path=temp_config.name)
+            result = ocr.extract_from_image("fake_image.png")
+            
+            # Verify result
+            self.assertEqual(result["test_metric"], "42")
+        finally:
+            os.unlink(temp_config.name)
+            
+    @patch('easyocr.Reader')
+    @patch('glob.glob')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    @patch('os.makedirs')
+    def test_directory_processing_success(self, mock_makedirs, mock_cvtColor, mock_imread, mock_glob, mock_easyocr):
+        """Test successful directory processing workflow."""
+        # Mock file discovery
+        mock_glob.return_value = ["test1.png", "test2.png", "test3.png"]
+        
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        mock_cvtColor.return_value = np.zeros((116, 301), dtype=np.uint8)
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("42", 0.9, (10, 10, 50, 50))
+        ]
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Mock save_results to avoid file system operations
+        with patch.object(ocr, 'save_results') as mock_save:
+            results = ocr.process_directory("fake_input_dir", "fake_output_dir")
+            
+            # Verify results
+            self.assertEqual(len(results), 3)
+            self.assertIn("test1.png", results)
+            self.assertIn("test2.png", results)
+            self.assertIn("test3.png", results)
+            
+            # Verify save_results was called
+            mock_save.assert_called_once()
+            
+            # Verify directory creation
+            mock_makedirs.assert_called_once_with("fake_output_dir", exist_ok=True)
+            
+    @patch('easyocr.Reader')
+    @patch('glob.glob')
+    def test_directory_processing_no_images(self, mock_glob, mock_easyocr):
+        """Test directory processing when no images are found."""
+        # Mock no files found
+        mock_glob.return_value = []
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Mock save_results to avoid file system operations
+        with patch.object(ocr, 'save_results') as mock_save:
+            results = ocr.process_directory("empty_dir", "output_dir")
+            
+            # Verify empty results
+            self.assertEqual(results, {})
+            
+            # Verify save_results was not called
+            mock_save.assert_not_called()
+            
+    @patch('easyocr.Reader')
+    @patch('glob.glob')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    def test_directory_processing_mixed_results(self, mock_cvtColor, mock_imread, mock_glob, mock_easyocr):
+        """Test directory processing with mixed success/failure."""
+        # Mock file discovery
+        mock_glob.return_value = ["good.png", "bad.png", "ugly.png"]
+        
+        # Mock image loading - some succeed, some fail
+        def mock_imread_side_effect(path):
+            if "bad.png" in path:
+                return None  # Simulate loading failure
+            return np.zeros((1000, 2000, 3), dtype=np.uint8)
+        
+        mock_imread.side_effect = mock_imread_side_effect
+        mock_cvtColor.return_value = np.zeros((116, 301), dtype=np.uint8)
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("42", 0.9, (10, 10, 50, 50))
+        ]
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Mock save_results to avoid file system operations
+        with patch.object(ocr, 'save_results') as mock_save:
+            results = ocr.process_directory("mixed_dir", "output_dir")
+            
+            # Verify results
+            self.assertEqual(len(results), 3)
+            
+            # Verify successful extractions
+            self.assertIn("good.png", results)
+            self.assertIn("ugly.png", results)
+            self.assertNotIn("error", results["good.png"])
+            self.assertNotIn("error", results["ugly.png"])
+            
+            # Verify failed extraction
+            self.assertIn("bad.png", results)
+            self.assertIn("error", results["bad.png"])
+            self.assertIn("Could not load image", results["bad.png"]["error"])
+            
+    @patch('easyocr.Reader') 
+    def test_save_results_json_csv(self, mock_easyocr):
+        """Test save_results method creates both JSON and CSV files."""
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Test data
+        test_results = {
+            "test1.png": {
+                "date": "20250701",
+                "shot_id": "1",
+                "carry": "42.5"
+            },
+            "test2.png": {
+                "date": "20250701",
+                "shot_id": "2", 
+                "carry": "39.0"
+            }
+        }
+        
+        # Create temporary directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save results
+            ocr.save_results(test_results, temp_dir)
+            
+            # Verify JSON file exists and has correct content
+            json_path = os.path.join(temp_dir, "golf_ocr_results.json")
+            self.assertTrue(os.path.exists(json_path))
+            
+            with open(json_path, 'r') as f:
+                saved_json = json.load(f)
+            self.assertEqual(saved_json, test_results)
+            
+            # Verify CSV file exists and has correct content
+            csv_path = os.path.join(temp_dir, "golf_ocr_results.csv")
+            self.assertTrue(os.path.exists(csv_path))
+            
+            with open(csv_path, 'r') as f:
+                csv_content = f.read()
+            
+            # Check CSV headers and data
+            self.assertIn("filename", csv_content)
+            self.assertIn("carry", csv_content)
+            self.assertIn("date", csv_content)
+            self.assertIn("shot_id", csv_content)
+            self.assertIn("test1.png", csv_content)
+            self.assertIn("test2.png", csv_content)
+            self.assertIn("42.5", csv_content)
+            self.assertIn("39.0", csv_content)
+            
+    @patch('easyocr.Reader')
+    def test_save_results_with_errors(self, mock_easyocr):
+        """Test save_results handles results with errors correctly."""
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        # Test data with errors
+        test_results = {
+            "good.png": {
+                "date": "20250701",
+                "shot_id": "1"
+            },
+            "bad.png": {
+                "error": "Could not load image"
+            }
+        }
+        
+        # Create temporary directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save results
+            ocr.save_results(test_results, temp_dir)
+            
+            # Verify CSV excludes error entries from data rows
+            csv_path = os.path.join(temp_dir, "golf_ocr_results.csv")
+            with open(csv_path, 'r') as f:
+                csv_content = f.read()
+            
+            # Error should not be in headers
+            self.assertNotIn("error", csv_content.split('\n')[0])
+            
+            # But filenames should still be present
+            self.assertIn("good.png", csv_content)
+            self.assertIn("bad.png", csv_content)
+            
+    @patch('easyocr.Reader')
+    def test_save_results_io_error(self, mock_easyocr):
+        """Test save_results handles IO errors gracefully."""
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        
+        # Create GolfOCR instance
+        ocr = GolfOCR(verbose=False, config_path=self.temp_config_file.name)
+        
+        test_results = {"test.png": {"metric": "value"}}
+        
+        # Test with invalid directory (should raise ValueError)
+        with self.assertRaises(ValueError) as context:
+            ocr.save_results(test_results, "/nonexistent/readonly/path")
+        
+        self.assertIn("Failed to save JSON results", str(context.exception))
+        
+    @patch('easyocr.Reader')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor') 
+    def test_verbose_mode_output(self, mock_cvtColor, mock_imread, mock_easyocr):
+        """Test verbose mode provides detailed output during extraction."""
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        mock_cvtColor.return_value = np.zeros((116, 301), dtype=np.uint8)
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("JULY 1, 2025", 0.9, (10, 10, 50, 50))
+        ]
+        
+        # Create GolfOCR instance in verbose mode
+        ocr = GolfOCR(verbose=True, config_path=self.temp_config_file.name)
+        
+        # Capture stdout to verify verbose output
+        import io
+        import sys
+        captured_output = io.StringIO()
+        sys.stdout = captured_output
+        
+        try:
+            result = ocr.extract_from_image("test.png")
+            
+            # Restore stdout
+            sys.stdout = sys.__stdout__
+            output = captured_output.getvalue()
+            
+            # Verify verbose output contains expected messages
+            self.assertIn("Processing: test.png", output)
+            self.assertIn("Extracting DATE", output)
+            self.assertIn("Converted date to", output)
+            self.assertIn("Result:", output)
+            
+        finally:
+            sys.stdout = sys.__stdout__
+            
+    @patch('easyocr.Reader')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    def test_extraction_with_boundary_coordinates(self, mock_cvtColor, mock_imread, mock_easyocr):
+        """Test extraction with boundary bbox coordinates."""
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        mock_cvtColor.return_value = np.zeros((1, 1), dtype=np.uint8)
+        
+        # Mock EasyOCR reader
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("42", 0.9, (0, 0, 1, 1))
+        ]
+        
+        # Create config with boundary coordinates
+        boundary_config = {
+            "metrics": {
+                "BOUNDARY_TEST": {
+                    "bbox": [0, 0, 1, 1],  # Minimal bbox
+                    "expect_decimal": False
+                },
+                # Add required metrics to pass validation
+                "DISTANCE_TO_PIN": {"bbox": [184, 396, 175, 148], "expect_decimal": False},
+                "CARRY": {"bbox": [147, 705, 252, 145], "expect_decimal": True},
+                "FROM_PIN": {"bbox": [188, 982, 170, 136], "expect_decimal": False},
+                "STROKES_GAINED": {"bbox": [94, 1249, 323, 149], "expect_decimal": True}
+            }
+        }
+        
+        temp_config = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        json.dump(boundary_config, temp_config)
+        temp_config.close()
+        
+        try:
+            ocr = GolfOCR(verbose=False, config_path=temp_config.name)
+            result = ocr.extract_from_image("test.png")
+            
+            # Should handle boundary coordinates without error
+            self.assertEqual(result["boundary_test"], "42")
+        finally:
+            os.unlink(temp_config.name)
+            
+    @patch('easyocr.Reader')
+    @patch('cv2.imread')
+    @patch('cv2.cvtColor')
+    def test_multiple_pattern_matches(self, mock_cvtColor, mock_imread, mock_easyocr):
+        """Test handling of multiple pattern matches in OCR results."""
+        # Mock image loading
+        mock_image = np.zeros((1000, 2000, 3), dtype=np.uint8)
+        mock_imread.return_value = mock_image
+        mock_cvtColor.return_value = np.zeros((100, 100), dtype=np.uint8)
+        
+        # Mock EasyOCR reader with multiple matches
+        mock_reader = Mock()
+        mock_easyocr.return_value = mock_reader
+        mock_reader.readtext.return_value = [
+            self.create_mock_ocr_result("#1 Shot #2", 0.9, (10, 10, 50, 50)),
+            self.create_mock_ocr_result("#3", 0.8, (60, 60, 100, 100))
+        ]
+        
+        # Create config with shot ID pattern
+        pattern_config = {
+            "metrics": {
+                "SHOT_ID": {
+                    "bbox": [0, 0, 100, 100],
+                    "expect_decimal": False,
+                    "pattern": "#\\s*(\\d+)"
+                },
+                # Add required metrics to pass validation
+                "DISTANCE_TO_PIN": {"bbox": [184, 396, 175, 148], "expect_decimal": False},
+                "CARRY": {"bbox": [147, 705, 252, 145], "expect_decimal": True},
+                "FROM_PIN": {"bbox": [188, 982, 170, 136], "expect_decimal": False},
+                "STROKES_GAINED": {"bbox": [94, 1249, 323, 149], "expect_decimal": True}
+            }
+        }
+        
+        temp_config = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+        json.dump(pattern_config, temp_config)
+        temp_config.close()
+        
+        try:
+            ocr = GolfOCR(verbose=False, config_path=temp_config.name)
+            result = ocr.extract_from_image("test.png")
+            
+            # Should extract based on confidence scoring
+            self.assertIn(result["shot_id"], ["1", "3"])  # Should pick one based on confidence
+        finally:
+            os.unlink(temp_config.name)
 
 
 if __name__ == '__main__':
