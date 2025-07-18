@@ -35,19 +35,18 @@ The system processes images from the `photos/` directory and extracts these valu
 │   ├── validation.py       # Config and bounding box validation
 │   ├── parsing.py          # Date and yardage range parsing
 │   └── ocr_processing.py   # OCR result extraction and scoring
-├── tests/                  # Comprehensive unit test suite (58 tests)
+├── tests/                  # Comprehensive unit test suite (97 tests)
 │   ├── __init__.py         # Test package
-│   ├── test_parsing.py     # Date & yardage parsing tests (15 tests)
-│   ├── test_ocr_processing.py # OCR scoring algorithm tests (18 tests)
+│   ├── test_parsing.py     # Date & yardage parsing tests (31 tests)
+│   ├── test_ocr_processing.py # OCR scoring algorithm tests (30 tests)
 │   ├── test_validation.py  # Config & bbox validation tests (17 tests)
-│   ├── test_golf_ocr.py    # Integration tests with mocks (8 tests)
+│   ├── test_golf_ocr.py    # Integration tests with mocks (19 tests)
 │   └── README.md           # Test suite documentation
 ├── test_validation.py      # Ground truth validation (100% accuracy)
 ├── photos/                 # Input images (40 golf app screenshots)
 ├── output/                 # Results (JSON and CSV files)
 ├── docs/
-│   ├── PLAN.md            # Development priorities and todos
-│   └── ANALYSIS.md        # Codebase analysis and recommendations
+│   └── PLAN.md            # Development priorities and todos
 ├── requirements.txt        # Python dependencies
 └── .gitignore             # Git ignore patterns (Python project)
 ```
@@ -123,16 +122,6 @@ The system generates both JSON and CSV files with these fields:
 - `yardage_from` - Lower bound of range (e.g., "30", "50")
 - `yardage_to` - Upper bound of range (e.g., "50", "75")
 
-## Testing & Validation
-
-### **Ground Truth System**
-- Complete test coverage with ground truth data in `config.json`
-- Validation framework via `test_validation.py` - run with `python test_validation.py`
-- 100% accuracy on 40 images (360 data points)
-- Type-safe validation with proper normalization
-- Regression protection for code changes
-
-
 ## Development Workflow
 
 ### **Feature Development Process**
@@ -185,6 +174,26 @@ The system generates both JSON and CSV files with these fields:
 - Enhanced testability - utility functions can be tested independently
 - Improved reusability - utilities available for future components
 
+### **Comprehensive Test Architecture (2025-07-18)**
+
+**Unit Tests (97 tests total):**
+- **Parsing Functions** (31 tests): Comprehensive edge case coverage for date conversion and yardage range parsing
+- **OCR Processing** (30 tests): Thorough testing of scoring algorithms, pattern matching, and candidate selection
+- **Validation** (17 tests): Complete configuration and bounding box validation coverage
+- **Integration** (19 tests): End-to-end workflow testing with mocked dependencies
+
+**Ground Truth Validation:**
+- 100% accuracy maintained across all test enhancements
+- Real-world validation with 40 images (360 data points)
+- Regression protection for confident code changes
+
+**Test Quality Features:**
+- Edge case coverage for all critical functions
+- Mocked dependencies for isolated testing
+- Boundary condition testing
+- Error handling verification
+- Performance edge case testing
+
 ### **Key Technical Insights**
 1. **EasyOCR superiority**: Neural OCR significantly outperforms Tesseract for this use case
 2. **Hardcoded coordinates**: More reliable than dynamic region detection for consistent app layouts
@@ -194,14 +203,16 @@ The system generates both JSON and CSV files with these fields:
 6. **Single extraction approach**: Yardage range generates 3 metrics automatically
 7. **Robust validation**: Comprehensive input validation with specific error messages
 8. **Ground truth validation**: Complete test coverage enables confident code changes
+9. **Comprehensive testing**: 97 unit tests provide extensive coverage of all critical functions
 
 ## System Status
 
 **Production Ready**: 100% accuracy on all 9 metrics (360/360 test points)
 **Architecture**: Modular design with extracted utility functions for improved maintainability
-**Code Quality**: Comprehensive validation, error handling, and regression protection
+**Test Coverage**: Comprehensive 97-test suite with extensive edge case coverage
+**Code Quality**: Robust validation, error handling, and regression protection
 
-See `docs/PLAN.md` for development priorities and todos.
+See `docs/PLAN.md` for remaining development priorities and todos.
 
 ## Future Development Guidelines
 
